@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useGame, formatMoney } from '@/context/GameContext';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -45,6 +45,9 @@ const AccessoriesTab: React.FC = () => {
   const [usernameChecking, setUsernameChecking] = useState(false);
   const [usernameError, setUsernameError] = useState('');
   const [usernameBuying, setUsernameBuying] = useState(false);
+  const [usernameAvailabilityNote, setUsernameAvailabilityNote] = useState('');
+  const usernameCheckId = useRef(0);
+  const usernameCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [myUsernames, setMyUsernames] = useState<PlayerUsername[]>([]);
   const [manageDialogOpen, setManageDialogOpen] = useState(false);
 
@@ -98,37 +101,61 @@ const AccessoriesTab: React.FC = () => {
   // Username functions
   const checkUsername = async (name: string) => {
     const clean = name.replace(/^@/, '').toLowerCase();
+    const requestId = ++usernameCheckId.current;
     if (!USERNAME_REGEX.test(clean)) {
       setUsernameAvailable(null);
       setUsernameError(clean.length < 5 ? t('acc.min_chars') : clean.length > 26 ? t('acc.max_chars') : t('acc.only_latin'));
       return;
     }
     setUsernameError('');
+    setUsernameAvailabilityNote('');
     setUsernameChecking(true);
-    const { data } = await supabase
-      .from('player_usernames')
-      .select('id')
-      .ilike('username', clean)
-      .limit(1);
-    if (error) {
-      setUsernameAvailable(null);
-      setUsernameError('Не удалось проверить username');
-    } else {
-      setUsernameAvailable(!data || data.length === 0);
+    try {
+      const query = supabase
+        .from('player_usernames')
+        .select('id')
+        .eq('username', clean)
+        .limit(1);
+      const result = await Promise.race([
+        Promise.resolve(query),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 6000)),
+      ]);
+      if (requestId !== usernameCheckId.current) return;
+      if (result.error) throw result.error;
+      setUsernameAvailable(!result.data || result.data.length === 0);
+    } catch (error) {
+      if (requestId !== usernameCheckId.current) return;
+      console.warn('[Username] availability check deferred', error);
+      // The purchase RPC performs the authoritative uniqueness check atomically.
+      setUsernameAvailable(true);
+      setUsernameAvailabilityNote('Доступность будет окончательно проверена при покупке');
+    } finally {
+      if (requestId === usernameCheckId.current) setUsernameChecking(false);
     }
-    setUsernameChecking(false);
   };
 
   const handleUsernameInputChange = (val: string) => {
     setUsernameInput(val);
-    const clean = val.replace(/^@/, '');
-    if (clean.length >= 3) {
-      checkUsername(clean);
-    } else {
+    const clean = val.replace(/^@/, '').toLowerCase();
+    usernameCheckId.current += 1;
+    if (usernameCheckTimer.current) clearTimeout(usernameCheckTimer.current);
+    setUsernameChecking(false);
+    setUsernameAvailabilityNote('');
+    if (USERNAME_REGEX.test(clean)) {
       setUsernameAvailable(null);
       setUsernameError('');
+      setUsernameChecking(true);
+      usernameCheckTimer.current = setTimeout(() => checkUsername(clean), 350);
+    } else {
+      setUsernameAvailable(null);
+      setUsernameError(clean.length === 0 ? '' : clean.length < 5 ? t('acc.min_chars') : clean.length > 26 ? t('acc.max_chars') : t('acc.only_latin'));
     }
   };
+
+  useEffect(() => () => {
+    if (usernameCheckTimer.current) clearTimeout(usernameCheckTimer.current);
+    usernameCheckId.current += 1;
+  }, []);
 
   const handleBuyUsername = async () => {
     if (!user?.id) return;
@@ -487,6 +514,7 @@ const AccessoriesTab: React.FC = () => {
                 {usernameError && <p className="text-xs text-destructive">{usernameError}</p>}
                 {usernameAvailable === true && !usernameError && <p className="text-xs text-green-500">{t('acc.available')}</p>}
                 {usernameAvailable === false && !usernameError && <p className="text-xs text-destructive">{t('acc.taken')}</p>}
+                {usernameAvailabilityNote && <p className="text-[10px] text-amber-500">{usernameAvailabilityNote}</p>}
               </div>
               <p className="text-[10px] text-muted-foreground mt-1">{t('acc.username_hint')}</p>
             </div>
