@@ -1,29 +1,30 @@
 import React from 'react';
+import { assetUrl } from '@/lib/assets';
 
 // Map of asset IDs to their logo file paths
 const LOGO_MAP: Record<string, string> = {
   // Stocks
-  aapl: '/images/logos/aapl.png',
-  googl: '/images/logos/googl.png',
-  tsla: '/images/logos/tsla.png',
-  amzn: '/images/logos/amzn.png',
-  msft: '/images/logos/msft.png',
-  nvda: '/images/logos/nvda.png',
-  jpm: '/images/logos/jpm.png',
-  ko: '/images/logos/ko.png',
-  dis: '/images/logos/dis.png',
-  ba: '/images/logos/ba.png',
-  xom: '/images/logos/xom.png',
-  pfe: '/images/logos/pfe.png',
+  aapl: assetUrl('/images/logos/aapl.png'),
+  googl: assetUrl('/images/logos/googl.png'),
+  tsla: assetUrl('/images/logos/tsla.png'),
+  amzn: assetUrl('/images/logos/amzn.png'),
+  msft: assetUrl('/images/logos/msft.png'),
+  nvda: assetUrl('/images/logos/nvda.png'),
+  jpm: assetUrl('/images/logos/jpm.png'),
+  ko: assetUrl('/images/logos/ko.png'),
+  dis: assetUrl('/images/logos/dis.png'),
+  ba: assetUrl('/images/logos/ba.png'),
+  xom: assetUrl('/images/logos/xom.png'),
+  pfe: assetUrl('/images/logos/pfe.png'),
   // Crypto
-  btc: '/images/logos/btc.png',
-  eth: '/images/logos/eth.png',
-  sol: '/images/logos/sol.png',
-  bnb: '/images/logos/bnb.png',
-  ada: '/images/logos/ada.png',
-  xrp: '/images/logos/xrp.png',
-  doge: '/images/logos/doge.png',
-  dot: '/images/logos/dot.png',
+  btc: assetUrl('/images/logos/btc.png'),
+  eth: assetUrl('/images/logos/eth.png'),
+  sol: assetUrl('/images/logos/sol.png'),
+  bnb: assetUrl('/images/logos/bnb.png'),
+  ada: assetUrl('/images/logos/ada.png'),
+  xrp: assetUrl('/images/logos/xrp.png'),
+  doge: assetUrl('/images/logos/doge.png'),
+  dot: assetUrl('/images/logos/dot.png'),
 };
 
 interface AssetLogoProps {
