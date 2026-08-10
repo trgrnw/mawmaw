@@ -38,6 +38,21 @@ Deno.serve(async (req) => {
       });
     }
 
+    const configuredOwnerId = Deno.env.get("ADMIN_OWNER_USER_ID");
+    if (!configuredOwnerId) {
+      return new Response(JSON.stringify({ error: "Owner bootstrap is not configured" }), {
+        status: 503,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (user.id !== configuredOwnerId) {
+      return new Response(JSON.stringify({ error: "Forbidden" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Check if ANY owner already exists
     const { data: existingOwners } = await supabaseAdmin
       .from("user_roles")
@@ -52,7 +67,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Assign owner role to current user
+    // Assign the owner role only to the explicitly configured account.
     const { error: insertError } = await supabaseAdmin
       .from("user_roles")
       .insert({ user_id: user.id, role: "owner" });
@@ -68,7 +83,7 @@ Deno.serve(async (req) => {
     await supabaseAdmin.from("admin_logs").insert({
       admin_user_id: user.id,
       action: "auto_assign_owner",
-      details: { method: "first_visit" },
+      details: { method: "configured_owner" },
     });
 
     return new Response(JSON.stringify({ success: true, role: "owner" }), {
