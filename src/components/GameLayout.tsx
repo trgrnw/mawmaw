@@ -70,7 +70,7 @@ const tabComponents: Record<TabId, React.FC> = {
 const GameLayout: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabId>('earning');
   const [isStaff, setIsStaff] = useState(false);
-  const { balance } = useGame();
+  const { balance, playerXp, playerLevel, levelStartXp, nextLevelXp, levelProgress } = useGame();
   const { user, username } = useAuth();
   const { t } = useI18n();
   const ActiveComponent = tabComponents[activeTab];
@@ -99,6 +99,19 @@ const GameLayout: React.FC = () => {
     };
     window.addEventListener('offline-income', handler);
     return () => window.removeEventListener('offline-income', handler);
+  }, []);
+
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const { level, reward } = (event as CustomEvent).detail || {};
+      if (!level) return;
+      toast.success(`Новый уровень: ${level}!`, {
+        description: `Награда за развитие: $${formatMoney(reward || 0)}`,
+        duration: 6000,
+      });
+    };
+    window.addEventListener('player-level-up', handler);
+    return () => window.removeEventListener('player-level-up', handler);
   }, []);
 
   const renderMenuButton = (item: { id: TabId; i18nKey: string; icon: string }) => (
@@ -134,6 +147,18 @@ const GameLayout: React.FC = () => {
               <GameIcon name="profile" size={12} /> {username}
             </p>
           )}
+          <div className="mt-3" title={`${playerXp} / ${nextLevelXp} XP`}>
+            <div className="mb-1 flex items-center justify-between text-[10px] text-foreground/60">
+              <span>Уровень {playerLevel}</span>
+              <span>{playerXp - levelStartXp}/{nextLevelXp - levelStartXp} XP</span>
+            </div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-foreground/10">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-sky-500 to-violet-500 transition-all duration-300"
+                style={{ width: `${Math.min(100, Math.max(0, levelProgress * 100))}%` }}
+              />
+            </div>
+          </div>
         </div>
 
         {/* Main menu */}
