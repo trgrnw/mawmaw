@@ -11,6 +11,7 @@ import GameIcon from '@/components/GameIcon';
 import ProfileCustomization, { getBannerCss, getFrameClass } from '@/components/profile/ProfileCustomization';
 import PlayerProfileDialog from '@/components/profile/PlayerProfileDialog';
 import { toast } from 'sonner';
+import { withTimeout } from '@/lib/async';
 
 const COLORS = ['#87CEEB', '#ADD8E6', '#B0E0E6', '#5F9EA0', '#4682B4', '#6495ED', '#7EC8E3', '#00CED1'];
 
@@ -109,15 +110,14 @@ const ProfileTab: React.FC = () => {
     setSearchLoading(true);
     setSearchCompleted(false);
     setSearchResults([]);
-    const { data: stats, error } = await supabase.rpc('search_public_players' as any, { p_query: q });
-    if (error) {
-      console.error('[Profile] player search failed', error);
-      toast.error('Не удалось выполнить поиск игроков');
-      setSearchLoading(false);
-      setSearchCompleted(true);
-      return;
-    }
-    const mapped = ((stats as any[]) || []).map((s: any) => ({
+    try {
+      const { data: stats, error } = await withTimeout(
+        supabase.rpc('search_public_players' as any, { p_query: q }),
+        8_000,
+        'Поиск игроков занял слишком много времени',
+      );
+      if (error) throw error;
+      const mapped = ((stats as any[]) || []).map((s: any) => ({
       user_id: s.user_id as string,
       username: (s.username as string) || 'Player',
       avatar_emoji: (s.avatar_emoji as string) || '👤',
@@ -126,12 +126,17 @@ const ProfileTab: React.FC = () => {
       net_worth: (s.net_worth as number) ?? null,
       likes_count: (s.likes_count as number) ?? 0,
       avg_rating: (s.avg_rating as number) ?? null,
-    }));
-    setSearchResults(mapped);
-    setSearchCompleted(true);
-    setSearchLoading(false);
-    if (mapped.length === 0) toast.info('Игрок не найден');
-    else toast.success(mapped.length === 1 ? 'Игрок найден' : `Найдено игроков: ${mapped.length}`);
+      }));
+      setSearchResults(mapped);
+      if (mapped.length === 0) toast.info('Игрок не найден');
+      else toast.success(mapped.length === 1 ? 'Игрок найден' : `Найдено игроков: ${mapped.length}`);
+    } catch (error) {
+      console.error('[Profile] player search failed', error);
+      toast.error(error instanceof Error ? error.message : 'Не удалось выполнить поиск игроков');
+    } finally {
+      setSearchLoading(false);
+      setSearchCompleted(true);
+    }
   };
 
   const shopPurchased = shopItems.filter(i => i.purchased);

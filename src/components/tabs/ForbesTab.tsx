@@ -4,6 +4,8 @@ import { formatMoney } from '@/context/GameContext';
 import { useI18n } from '@/i18n/I18nContext';
 import GameIcon from '@/components/GameIcon';
 import { Loader2 } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
+import { withTimeout } from '@/lib/async';
 
 interface ForbesEntry {
   user_id: string;
@@ -12,6 +14,7 @@ interface ForbesEntry {
   player_id: number | null;
   net_worth: number | null;
   updated_at: string | null;
+  rank: number | null;
 }
 interface ClanEntry {
   id: string;
@@ -31,6 +34,7 @@ const MEDAL_COLORS = ['hsl(45 93% 47%)', 'hsl(210 10% 65%)', 'hsl(25 70% 50%)'];
 
 const ForbesTab: React.FC = () => {
   const { t } = useI18n();
+  const { user } = useAuth();
   const [scope, setScope] = useState<ScopeType>('players');
   const [period, setPeriod] = useState<PeriodType>('all');
   const [region, setRegion] = useState<RegionType>('global');
@@ -51,7 +55,11 @@ const ForbesTab: React.FC = () => {
           if (queryError) throw queryError;
           setClans((data as any) || []);
         } else if (scope === 'players') {
-          const { data, error: queryError } = await supabase.rpc('get_forbes_players' as any);
+          const { data, error: queryError } = await withTimeout(
+            supabase.rpc('get_forbes_players' as any),
+            8_000,
+            'Рейтинг не отвечает',
+          );
           if (queryError) throw queryError;
           setEntries((data as unknown as ForbesEntry[]) || []);
         } else {
@@ -155,12 +163,12 @@ const ForbesTab: React.FC = () => {
           </div>
           <div className="divide-y">
             {entries.map((e, i) => (
-              <div key={`${e.player_id ?? i}`} className="grid grid-cols-[3rem_1fr_auto] gap-2 px-4 py-3 items-center">
-                <span className="text-sm font-bold">{i < 3 ? <GameIcon name="forbes" size={20} color={MEDAL_COLORS[i]} /> : i + 1}</span>
+              <div key={e.user_id} className={`grid grid-cols-[3rem_1fr_auto] gap-2 px-4 py-3 items-center ${e.user_id === user?.id ? 'bg-primary/10 ring-1 ring-inset ring-primary/30' : ''}`}>
+                <span className="text-sm font-bold">{(e.rank ?? i + 1) <= 3 ? <GameIcon name="forbes" size={20} color={MEDAL_COLORS[(e.rank ?? i + 1) - 1]} /> : e.rank ?? i + 1}</span>
                 <div className="flex items-center gap-2 min-w-0">
                   <GameIcon name="profile" size={20} className="text-muted-foreground flex-shrink-0" />
                   <div className="min-w-0">
-                    <span className="text-sm font-medium truncate block">{e.username || 'Player'}</span>
+                    <span className="text-sm font-medium truncate block">{e.username || 'Player'}{e.user_id === user?.id ? ' (Вы)' : ''}</span>
                     {e.player_id && <span className="text-[10px] text-muted-foreground">ID: {e.player_id.toLocaleString()}</span>}
                   </div>
                 </div>

@@ -13,6 +13,7 @@ import LicensePlate, {
 } from '@/components/LicensePlate';
 import PlateSlotAnimation from '@/components/PlateSlotAnimation';
 import { toast } from 'sonner';
+import { withTimeout } from '@/lib/async';
 
 type View = 'categories' | 'items';
 
@@ -116,10 +117,7 @@ const AccessoriesTab: React.FC = () => {
         .select('id')
         .eq('username', clean)
         .limit(1);
-      const result = await Promise.race([
-        Promise.resolve(query),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 6000)),
-      ]);
+      const result = await withTimeout(query, 6000, 'Проверка username заняла слишком много времени');
       if (requestId !== usernameCheckId.current) return;
       if (result.error) throw result.error;
       setUsernameAvailable(!result.data || result.data.length === 0);
@@ -158,31 +156,59 @@ const AccessoriesTab: React.FC = () => {
   }, []);
 
   const handleBuyUsername = async () => {
-    if (!user?.id) return;
+    if (!user?.id || usernameBuying) return;
     const clean = usernameInput.replace(/^@/, '').toLowerCase();
     if (!USERNAME_REGEX.test(clean) || !usernameAvailable) return;
     if (balance < USERNAME_PRICE) return;
     if (myUsernames.length >= MAX_USERNAMES) return;
-    if (!spendBalance(USERNAME_PRICE)) return;
     setUsernameBuying(true);
-    const { error } = await supabase.rpc('purchase_player_username' as any, { p_username: clean });
-    if (error) {
-      addBalance(USERNAME_PRICE);
-      if (error.code === '23505' || error.message.toLowerCase().includes('already taken')) {
-        setUsernameAvailable(false);
-        setUsernameError(t('acc.already_taken'));
-      }
-      console.error('[Username] purchase failed', error);
-      toast.error(`${error.message || 'Не удалось купить username'}. Деньги возвращены.`);
+    if (!spendBalance(USERNAME_PRICE)) {
       setUsernameBuying(false);
       return;
     }
-    setUsernameDialogOpen(false);
-    setUsernameInput('');
-    setUsernameAvailable(null);
-    await loadUsernames();
-    setUsernameBuying(false);
-    toast.success(`Username @${clean} куплен`);
+
+    try {
+      const { error } = await withTimeout(
+        supabase.rpc('purchase_player_username' as any, { p_username: clean }),
+        10_000,
+        'Покупка username заняла слишком много времени',
+      );
+      if (error) throw error;
+
+      setUsernameDialogOpen(false);
+      setUsernameInput('');
+      setUsernameAvailable(null);
+      await loadUsernames();
+      toast.success(`Username @${clean} куплен`);
+    } catch (error: any) {
+      // A timeout is ambiguous: the server may have completed the purchase.
+      // Reconcile ownership before refunding to avoid a free username.
+      const { data: owned } = await supabase
+        .from('player_usernames')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('username', clean)
+        .limit(1);
+
+      if (owned?.length) {
+        setUsernameDialogOpen(false);
+        setUsernameInput('');
+        setUsernameAvailable(null);
+        await loadUsernames();
+        toast.success(`Username @${clean} куплен`);
+      } else {
+        addBalance(USERNAME_PRICE);
+        const message = String(error?.message || 'Не удалось купить username');
+        if (error?.code === '23505' || message.toLowerCase().includes('already taken')) {
+          setUsernameAvailable(false);
+          setUsernameError(t('acc.already_taken'));
+        }
+        console.error('[Username] purchase failed', error);
+        toast.error(`${message}. Деньги возвращены.`);
+      }
+    } finally {
+      setUsernameBuying(false);
+    }
   };
 
   const toggleUsernameActive = async (id: string, currentActive: boolean) => {
