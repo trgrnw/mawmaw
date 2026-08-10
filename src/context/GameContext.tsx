@@ -1,189 +1,37 @@
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
 import { businessCategories } from '@/data/businessNames';
 import { businessMergers } from '@/data/mergerData';
-import { shopItemsData, accessoryItemsData } from '@/data/shopData';
 import { stockAssets, cryptoAssets, generatePriceHistory, nextPriceTick } from '@/data/investmentData';
 import { useAuth } from '@/context/AuthContext';
 import { useCloudSave } from '@/hooks/useCloudSave';
 import { supabase } from '@/integrations/supabase/client';
+import type {
+  Business,
+  CryptoHolding,
+  GameContextType,
+  LicensePlateState,
+  PriceData,
+  ShopItem,
+  StockHolding,
+  Upgrade,
+} from '@/game/types';
+import { defaultAccessories, defaultShopItems } from '@/game/defaults';
+import { defaultUpgrades } from '@/game/upgrades';
+import { TAX_PERIOD_MS } from '@/game/constants';
+import {
+  calculateBusinessRefund,
+  calculateTotalTaxDue,
+  createBusiness,
+} from '@/game/businesses';
+import {
+  calculatePortfolioValue,
+  calculateTradeProfit,
+  calculateWeightedAveragePrice,
+} from '@/game/investments';
+import { serializeState } from '@/game/save';
+import { formatMoney } from '@/game/format';
 
-export interface UpgradeLevel {
-  level: number;
-  bonus: number;
-  cost: number;
-}
-
-export interface Upgrade {
-  id: string;
-  name: string;
-  description: string;
-  emoji: string;
-  currentLevel: number;
-  maxLevel: number;
-  levels: UpgradeLevel[];
-}
-
-export interface LicensePlateState {
-  id: string;
-  text: string;
-  country: string;
-  assignedTo: string | null;
-  isCustom: boolean;
-}
-
-export interface ShopItem {
-  id: string;
-  name: string;
-  category: string;
-  price: number;
-  emoji: string;
-  purchased: boolean;
-}
-
-export interface Business {
-  id: string;
-  name: string;
-  categoryId: string;
-  categoryName: string;
-  emoji: string;
-  investmentCost: number;
-  incomePerHour: number;
-  taxRate: number;
-  taxDueAt: number;
-  taxPaid: boolean;
-  taxAmount: number;
-  createdAt: number;
-}
-
-// ── Investment types ──
-export interface StockHolding {
-  assetId: string;
-  quantity: number;
-  avgBuyPrice: number;
-}
-
-export interface CryptoHolding {
-  assetId: string;
-  quantity: number;
-  avgBuyPrice: number;
-}
-
-export interface PriceData {
-  [assetId: string]: {
-    current: number;
-    history: number[];
-  };
-}
-
-interface GameState {
-  balance: number;
-  clickPower: number;
-  hourlyIncome: number;
-  hourlyIncomeBusiness: number;
-  hourlyIncomeRent: number;
-  hourlyIncomeDividends: number;
-  totalEarnedClick: number;
-  totalEarnedBusiness: number;
-  totalEarnedRent: number;
-  totalEarnedDividends: number;
-  totalEarnedTrading: number;
-  totalEarnedCrypto: number;
-  totalEarnedGems: number;
-  upgrades: Upgrade[];
-  shopItems: ShopItem[];
-  accessoryItems: ShopItem[];
-  businesses: Business[];
-  passiveIncome: number;
-  netWorth: number;
-  totalTaxDue: number;
-  stockHoldings: StockHolding[];
-  cryptoHoldings: CryptoHolding[];
-  stockPrices: PriceData;
-  cryptoPrices: PriceData;
-  licensePlates: LicensePlateState[];
-}
-
-interface GameContextType extends GameState {
-  click: () => void;
-  buyUpgrade: (id: string) => boolean;
-  buyShopItem: (id: string, customPrice?: number) => boolean;
-  buyAccessory: (id: string) => boolean;
-  openBusiness: (categoryId: string, name: string) => boolean;
-  mergeBusiness: (mergerId: string) => boolean;
-  deleteBusiness: (id: string) => boolean;
-  payTaxes: () => boolean;
-  buyStock: (assetId: string, quantity: number) => boolean;
-  sellStock: (assetId: string, quantity: number) => boolean;
-  buyCrypto: (assetId: string, amount: number) => boolean;
-  sellCrypto: (assetId: string, amount: number) => boolean;
-  spendBalance: (amount: number) => boolean;
-  addBalance: (amount: number) => void;
-  addLicensePlate: (plate: LicensePlateState) => void;
-  assignPlate: (plateId: string, carId: string | null) => void;
-  removePlate: (plateId: string) => void;
-  formatMoney: (n: number) => string;
-}
-
-// Generate progressive upgrade levels
-function generateUpgradeLevels(): UpgradeLevel[] {
-  const levels: UpgradeLevel[] = [];
-  let totalBonus = 0;
-  let cost = 50;
-  let bonus = 1;
-  let level = 1;
-  
-  while (totalBonus + bonus <= 5900) {
-    levels.push({ level, bonus, cost: Math.round(cost) });
-    totalBonus += bonus;
-    level++;
-    if (totalBonus < 10) bonus = 1;
-    else if (totalBonus < 50) bonus = 2;
-    else if (totalBonus < 200) bonus = 5;
-    else if (totalBonus < 500) bonus = 10;
-    else if (totalBonus < 1000) bonus = 25;
-    else if (totalBonus < 2000) bonus = 50;
-    else if (totalBonus < 3500) bonus = 100;
-    else bonus = 200;
-    cost = cost * 1.35 + bonus * 10;
-  }
-  
-  return levels;
-}
-
-const upgradeLevels = generateUpgradeLevels();
-
-const defaultUpgrades: Upgrade[] = [
-  {
-    id: 'click-power',
-    name: 'Сила клика',
-    description: 'Увеличивает доход за каждый клик',
-    emoji: '👆',
-    currentLevel: 0,
-    maxLevel: upgradeLevels.length,
-    levels: upgradeLevels,
-  },
-];
-
-const defaultShopItems: ShopItem[] = shopItemsData.map(i => ({
-  id: i.id,
-  name: i.name,
-  category: i.categoryId,
-  price: i.basePrice,
-  emoji: i.emoji,
-  purchased: false,
-}));
-
-const defaultAccessories: ShopItem[] = accessoryItemsData.map(i => ({
-  id: i.id,
-  name: i.name,
-  category: i.categoryId,
-  price: i.basePrice,
-  emoji: i.emoji,
-  purchased: false,
-}));
-
-const TAX_PERIOD_MS = 72 * 60 * 60 * 1000;
-const BUSINESS_TAX_RATE = 0.23;
+export { formatMoney };
 
 // Initialize prices
 function initPrices(): { stocks: PriceData; crypto: PriceData } {
@@ -209,43 +57,6 @@ export const useGame = () => {
   if (!ctx) throw new Error('useGame must be within GameProvider');
   return ctx;
 };
-
-export const formatMoney = (n: number): string => {
-  if (n >= 1e12) return (n / 1e12).toFixed(2) + ' трлн';
-  if (n >= 1e9) return (n / 1e9).toFixed(2) + ' млрд';
-  if (n >= 1e6) return (n / 1e6).toFixed(2) + ' млн';
-  if (n >= 1e3) return (n / 1e3).toFixed(1) + ' тыс';
-  return n.toFixed(2);
-};
-
-// ── Serialization helpers ──
-function serializeState(state: {
-  balance: number; clickPower: number;
-  totalEarnedClick: number; totalEarnedBusiness: number; totalEarnedRent: number;
-  totalEarnedDividends: number; totalEarnedTrading: number; totalEarnedCrypto: number; totalEarnedGems: number;
-  upgrades: Upgrade[]; shopItems: ShopItem[]; accessoryItems: ShopItem[];
-  businesses: Business[]; stockHoldings: StockHolding[]; cryptoHoldings: CryptoHolding[];
-  licensePlates: LicensePlateState[];
-}): Record<string, unknown> {
-  return {
-    balance: state.balance,
-    clickPower: state.clickPower,
-    totalEarnedClick: state.totalEarnedClick,
-    totalEarnedBusiness: state.totalEarnedBusiness,
-    totalEarnedRent: state.totalEarnedRent,
-    totalEarnedDividends: state.totalEarnedDividends,
-    totalEarnedTrading: state.totalEarnedTrading,
-    totalEarnedCrypto: state.totalEarnedCrypto,
-    totalEarnedGems: state.totalEarnedGems,
-    upgradeLevels: state.upgrades.map(u => ({ id: u.id, currentLevel: u.currentLevel })),
-    purchasedShop: state.shopItems.filter(i => i.purchased).map(i => ({ id: i.id, price: i.price })),
-    purchasedAccessories: state.accessoryItems.filter(i => i.purchased).map(i => i.id),
-    businesses: state.businesses,
-    stockHoldings: state.stockHoldings,
-    cryptoHoldings: state.cryptoHoldings,
-    licensePlates: state.licensePlates,
-  };
-}
 
 export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
@@ -664,7 +475,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const cat = businessCategories.find(c => c.id === categoryId);
     if (!cat || balance < cat.cost) return false;
     setBalance(b => b - cat.cost);
-    const newBusiness: Business = {
+    const newBusiness = createBusiness({
       id: `biz-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       name,
       categoryId: cat.id,
@@ -672,12 +483,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       emoji: cat.emoji,
       investmentCost: cat.cost,
       incomePerHour: cat.baseIncomePerHour,
-      taxRate: BUSINESS_TAX_RATE,
-      taxDueAt: Date.now() + TAX_PERIOD_MS,
-      taxPaid: true,
-      taxAmount: 0,
-      createdAt: Date.now(),
-    };
+    });
     setBusinesses(prev => [...prev, newBusiness]);
     return true;
   }, [balance]);
@@ -694,11 +500,11 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     if (merger.minStockPortfolio) {
-      const sv = stockHoldings.reduce((s, h) => s + (stockPrices[h.assetId]?.current ?? 0) * h.quantity, 0);
+      const sv = calculatePortfolioValue(stockHoldings, stockPrices);
       if (sv < merger.minStockPortfolio) return false;
     }
     if (merger.minCryptoPortfolio) {
-      const cv = cryptoHoldings.reduce((s, h) => s + (cryptoPrices[h.assetId]?.current ?? 0) * h.quantity, 0);
+      const cv = calculatePortfolioValue(cryptoHoldings, cryptoPrices);
       if (cv < merger.minCryptoPortfolio) return false;
     }
     if (merger.minIslandCount) {
@@ -716,7 +522,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     setBusinesses(prev => {
       const filtered = prev.filter(b => !consumedBizIds.includes(b.id));
-      const newBiz: Business = {
+      const newBiz = createBusiness({
         id: `merge-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         name: merger.name,
         categoryId: merger.id,
@@ -724,12 +530,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         emoji: merger.emoji,
         investmentCost: totalInvestment,
         incomePerHour: merger.resultIncomePerHour,
-        taxRate: BUSINESS_TAX_RATE,
-        taxDueAt: Date.now() + TAX_PERIOD_MS,
-        taxPaid: true,
-        taxAmount: 0,
-        createdAt: Date.now(),
-      };
+      });
       return [...filtered, newBiz];
     });
 
@@ -739,20 +540,20 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const deleteBusiness = useCallback((id: string): boolean => {
     const biz = businesses.find(b => b.id === id);
     if (!biz) return false;
-    const refund = biz.investmentCost * 0.45;
+    const refund = calculateBusinessRefund(biz);
     setBalance(b => b + refund);
     setBusinesses(prev => prev.filter(b => b.id !== id));
     return true;
   }, [businesses]);
 
   const payTaxes = useCallback((): boolean => {
-    const unpaid = businesses.filter(b => !b.taxPaid && Date.now() >= b.taxDueAt);
-    const totalDue = unpaid.reduce((s, b) => s + b.taxAmount, 0);
+    const now = Date.now();
+    const totalDue = calculateTotalTaxDue(businesses, now);
     if (totalDue <= 0 || balance < totalDue) return false;
     setBalance(b => b - totalDue);
     setBusinesses(prev => prev.map(b => {
-      if (!b.taxPaid && Date.now() >= b.taxDueAt) {
-        return { ...b, taxPaid: true, taxDueAt: Date.now() + TAX_PERIOD_MS, taxAmount: 0 };
+      if (!b.taxPaid && now >= b.taxDueAt) {
+        return { ...b, taxPaid: true, taxDueAt: now + TAX_PERIOD_MS, taxAmount: 0 };
       }
       return b;
     }));
@@ -770,7 +571,12 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const existing = prev.find(h => h.assetId === assetId);
       if (existing) {
         const newQty = existing.quantity + quantity;
-        const newAvg = (existing.avgBuyPrice * existing.quantity + cost) / newQty;
+        const newAvg = calculateWeightedAveragePrice({
+          currentQuantity: existing.quantity,
+          currentAveragePrice: existing.avgBuyPrice,
+          addedQuantity: quantity,
+          addedCost: cost,
+        });
         return prev.map(h => h.assetId === assetId ? { ...h, quantity: newQty, avgBuyPrice: newAvg } : h);
       }
       return [...prev, { assetId, quantity, avgBuyPrice: price }];
@@ -784,7 +590,11 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const price = stockPrices[assetId]?.current;
     if (!price) return false;
     const revenue = price * quantity;
-    const profit = revenue - holding.avgBuyPrice * quantity;
+    const profit = calculateTradeProfit({
+      sellPrice: price,
+      averageBuyPrice: holding.avgBuyPrice,
+      quantity,
+    });
     setBalance(b => b + revenue);
     if (profit > 0) setTotalEarnedTrading(t => t + profit);
     setStockHoldings(prev => {
@@ -805,7 +615,12 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const existing = prev.find(h => h.assetId === assetId);
       if (existing) {
         const newQty = existing.quantity + amount;
-        const newAvg = (existing.avgBuyPrice * existing.quantity + cost) / newQty;
+        const newAvg = calculateWeightedAveragePrice({
+          currentQuantity: existing.quantity,
+          currentAveragePrice: existing.avgBuyPrice,
+          addedQuantity: amount,
+          addedCost: cost,
+        });
         return prev.map(h => h.assetId === assetId ? { ...h, quantity: newQty, avgBuyPrice: newAvg } : h);
       }
       return [...prev, { assetId, quantity: amount, avgBuyPrice: price }];
@@ -819,7 +634,11 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const price = cryptoPrices[assetId]?.current;
     if (!price) return false;
     const revenue = price * amount;
-    const profit = revenue - holding.avgBuyPrice * amount;
+    const profit = calculateTradeProfit({
+      sellPrice: price,
+      averageBuyPrice: holding.avgBuyPrice,
+      quantity: amount,
+    });
     setBalance(b => b + revenue);
     if (profit > 0) setTotalEarnedCrypto(t => t + profit);
     setCryptoHoldings(prev => {
