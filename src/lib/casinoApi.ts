@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { withTimeout } from '@/lib/async';
 
 const CASINO_TIMEOUT_MS = 10_000;
 
@@ -9,12 +10,13 @@ export async function invokeCasino(
   const request = supabase.functions.invoke('casino', {
     body: { action, ...params },
   });
-  const timeout = new Promise<never>((_, reject) => {
-    window.setTimeout(() => reject(new Error('Сервер казино не отвечает')), CASINO_TIMEOUT_MS);
-  });
-
-  const { data, error } = await Promise.race([request, timeout]);
+  const { data, error } = await withTimeout(
+    request,
+    CASINO_TIMEOUT_MS,
+    'Сервер казино не отвечает',
+  );
   if (error) throw new Error(error.message || 'Ошибка сервера казино');
+  if (data?.error) throw new Error(String(data.error));
   return data;
 }
 
