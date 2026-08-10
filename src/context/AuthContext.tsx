@@ -96,7 +96,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       password,
       options: {
         data: { username: uname },
-        emailRedirectTo: window.location.origin,
+        emailRedirectTo: new URL(import.meta.env.BASE_URL, window.location.origin).toString(),
       },
     });
     return { error: error?.message ?? null };
