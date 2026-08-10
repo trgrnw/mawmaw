@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAdminAuth, type AppRole } from '@/hooks/useAdminAuth';
+import { useAuth } from '@/context/AuthContext';
 import AdminPlayersTab from './tabs/AdminPlayersTab';
 import AdminEconomyTab from './tabs/AdminEconomyTab';
 import AdminCasinoTab from './tabs/AdminCasinoTab';
@@ -22,7 +23,8 @@ interface AdminLayoutProps {
 
 const AdminLayout: React.FC<AdminLayoutProps> = ({ role }) => {
   const navigate = useNavigate();
-  const { logout, canManageUsers, canManageEconomy, canManageRoles, canViewStats } = useAdminAuth();
+  const { signOut } = useAuth();
+  const { canManageUsers, canManageEconomy, canManageRoles, canViewStats } = useAdminAuth();
   const [activeTab, setActiveTab] = useState<AdminTab>('players');
 
   const tabs: { id: AdminTab; label: string; icon: string; allowed: boolean }[] = [
@@ -38,8 +40,8 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ role }) => {
     { id: 'logs', label: 'Логи', icon: 'logs', allowed: canViewStats },
   ];
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await signOut();
     navigate('/');
   };
 
