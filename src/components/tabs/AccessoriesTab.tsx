@@ -136,22 +136,17 @@ const AccessoriesTab: React.FC = () => {
     if (!USERNAME_REGEX.test(clean) || !usernameAvailable) return;
     if (balance < USERNAME_PRICE) return;
     if (myUsernames.length >= MAX_USERNAMES) return;
-    const activeCount = myUsernames.filter(u => u.is_active).length;
-    const makeActive = activeCount < MAX_ACTIVE;
     if (!spendBalance(USERNAME_PRICE)) return;
     setUsernameBuying(true);
-    const { error } = await supabase.from('player_usernames').insert({
-      user_id: user.id,
-      username: clean,
-      is_active: makeActive,
-    });
+    const { error } = await supabase.rpc('purchase_player_username' as any, { p_username: clean });
     if (error) {
       addBalance(USERNAME_PRICE);
-      if (error.code === '23505') {
+      if (error.code === '23505' || error.message.toLowerCase().includes('already taken')) {
         setUsernameAvailable(false);
         setUsernameError(t('acc.already_taken'));
       }
-      toast.error(usernameError || 'Не удалось купить username. Деньги возвращены.');
+      console.error('[Username] purchase failed', error);
+      toast.error(`${error.message || 'Не удалось купить username'}. Деньги возвращены.`);
       setUsernameBuying(false);
       return;
     }
