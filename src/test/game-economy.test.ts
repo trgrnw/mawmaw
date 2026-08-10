@@ -12,6 +12,13 @@ import {
 } from '@/game/investments';
 import { serializeState } from '@/game/save';
 import { defaultUpgrades } from '@/game/upgrades';
+import {
+  levelFromXp,
+  progressionFromXp,
+  rewardForLevel,
+  rewardsBetweenLevels,
+  totalXpForLevel,
+} from '@/game/progression';
 
 const NOW = 1_700_000_000_000;
 
@@ -75,6 +82,7 @@ describe('game economy helpers', () => {
     const serialized = serializeState({
       balance: 100,
       clickPower: 2,
+      playerXp: 125,
       totalEarnedClick: 10,
       totalEarnedBusiness: 20,
       totalEarnedRent: 30,
@@ -95,5 +103,15 @@ describe('game economy helpers', () => {
     expect(serialized).toHaveProperty('purchasedShop');
     expect(serialized).toHaveProperty('purchasedAccessories');
     expect(serialized).not.toHaveProperty('upgrades');
+    expect(serialized.playerXp).toBe(125);
+  });
+
+  it('calculates deterministic levels, progress and rewards', () => {
+    expect(totalXpForLevel(1)).toBe(0);
+    expect(totalXpForLevel(2)).toBe(100);
+    expect(levelFromXp(99)).toBe(1);
+    expect(levelFromXp(100)).toBe(2);
+    expect(progressionFromXp(100).progress).toBe(0);
+    expect(rewardsBetweenLevels(1, 3)).toBe(rewardForLevel(2) + rewardForLevel(3));
   });
 });
