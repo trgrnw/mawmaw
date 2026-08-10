@@ -1,0 +1,9 @@
+export const TAX_PERIOD_MS = 72 * 60 * 60 * 1000;
+export const BUSINESS_TAX_RATE = 0.23;
+export const BUSINESS_SELL_REFUND_RATE = 0.45;
+export const MARKET_TICK_MS = 3000;
+export const PASSIVE_INCOME_TICK_MS = 1000;
+export const PENDING_BALANCE_POLL_MS = 5000;
+export const TAX_CHECK_MS = 10000;
+export const PRESENCE_HEARTBEAT_MS = 60000;
+export const AUTOSAVE_INTERVAL_MS = 3000;
