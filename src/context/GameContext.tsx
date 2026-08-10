@@ -30,6 +30,11 @@ import {
 } from '@/game/investments';
 import { serializeState } from '@/game/save';
 import { formatMoney } from '@/game/format';
+import {
+  progressionFromXp,
+  rewardsBetweenLevels,
+  XP_PER_CLICK,
+} from '@/game/progression';
 
 export { formatMoney };
 
@@ -66,6 +71,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const [balance, setBalance] = useState(0);
   const [clickPower, setClickPower] = useState(1);
+  const [playerXp, setPlayerXp] = useState(0);
+  const playerXpRef = useRef(0);
   const [totalEarnedClick, setTotalEarnedClick] = useState(0);
   const [totalEarnedBusiness, setTotalEarnedBusiness] = useState(0);
   const [totalEarnedRent, setTotalEarnedRent] = useState(0);
@@ -89,6 +96,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   function resetToDefaults() {
     setBalance(0);
     setClickPower(1);
+    playerXpRef.current = 0;
+    setPlayerXp(0);
     setTotalEarnedClick(0);
     setTotalEarnedBusiness(0);
     setTotalEarnedRent(0);
@@ -179,6 +188,11 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   function applyLoadedState(saved: Record<string, unknown>) {
     if (typeof saved.balance === 'number') setBalance(saved.balance);
     if (typeof saved.clickPower === 'number') setClickPower(saved.clickPower);
+    if (typeof saved.playerXp === 'number') {
+      const safeXp = Math.max(0, Math.floor(saved.playerXp));
+      playerXpRef.current = safeXp;
+      setPlayerXp(safeXp);
+    }
     if (typeof saved.totalEarnedClick === 'number') setTotalEarnedClick(saved.totalEarnedClick);
     if (typeof saved.totalEarnedBusiness === 'number') setTotalEarnedBusiness(saved.totalEarnedBusiness);
     if (typeof saved.totalEarnedRent === 'number') setTotalEarnedRent(saved.totalEarnedRent);
@@ -229,13 +243,13 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // ── Refs for latest state (used by interval-based save) ──
   const latestState = useRef({
-    balance, clickPower, totalEarnedClick, totalEarnedBusiness, totalEarnedRent,
+    balance, clickPower, playerXp, totalEarnedClick, totalEarnedBusiness, totalEarnedRent,
     totalEarnedDividends, totalEarnedTrading, totalEarnedCrypto, totalEarnedGems,
     upgrades, shopItems, accessoryItems, businesses, stockHoldings, cryptoHoldings,
     stockPrices, cryptoPrices, licensePlates,
   });
   latestState.current = {
-    balance, clickPower, totalEarnedClick, totalEarnedBusiness, totalEarnedRent,
+    balance, clickPower, playerXp, totalEarnedClick, totalEarnedBusiness, totalEarnedRent,
     totalEarnedDividends, totalEarnedTrading, totalEarnedCrypto, totalEarnedGems,
     upgrades, shopItems, accessoryItems, businesses, stockHoldings, cryptoHoldings,
     stockPrices, cryptoPrices, licensePlates,
@@ -246,7 +260,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!user?.id) return;
 
     const state = serializeState({
-      balance: s.balance, clickPower: s.clickPower,
+      balance: s.balance, clickPower: s.clickPower, playerXp: s.playerXp,
       totalEarnedClick: s.totalEarnedClick, totalEarnedBusiness: s.totalEarnedBusiness,
       totalEarnedRent: s.totalEarnedRent, totalEarnedDividends: s.totalEarnedDividends,
       totalEarnedTrading: s.totalEarnedTrading, totalEarnedCrypto: s.totalEarnedCrypto,
@@ -434,10 +448,32 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => clearInterval(interval);
   }, []);
 
+  const addExperience = useCallback((amount: number) => {
+    const gainedXp = Math.max(0, Math.floor(amount));
+    if (gainedXp === 0) return;
+
+    const previousXp = playerXpRef.current;
+    const nextXp = previousXp + gainedXp;
+    const previousLevel = progressionFromXp(previousXp).level;
+    const nextLevel = progressionFromXp(nextXp).level;
+
+    playerXpRef.current = nextXp;
+    setPlayerXp(nextXp);
+
+    if (nextLevel > previousLevel) {
+      const reward = rewardsBetweenLevels(previousLevel, nextLevel);
+      setBalance(current => current + reward);
+      window.dispatchEvent(new CustomEvent('player-level-up', {
+        detail: { level: nextLevel, reward },
+      }));
+    }
+  }, []);
+
   const click = useCallback(() => {
     setBalance(b => b + clickPower);
     setTotalEarnedClick(t => t + clickPower);
-  }, [clickPower]);
+    addExperience(XP_PER_CLICK);
+  }, [clickPower, addExperience]);
 
   const buyUpgrade = useCallback((id: string): boolean => {
     const up = upgrades.find(u => u.id === id);
@@ -451,8 +487,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUpgrades(prev => prev.map(u =>
       u.id === id ? { ...u, currentLevel: u.currentLevel + 1 } : u
     ));
+    addExperience(15 + up.currentLevel * 5);
     return true;
-  }, [upgrades, balance]);
+  }, [upgrades, balance, addExperience]);
 
   const buyShopItem = useCallback((id: string, customPrice?: number): boolean => {
     const item = shopItems.find(i => i.id === id);
@@ -460,16 +497,18 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!item || item.purchased || balance < price) return false;
     setBalance(b => b - price);
     setShopItems(prev => prev.map(i => i.id === id ? { ...i, purchased: true, price } : i));
+    addExperience(40);
     return true;
-  }, [shopItems, balance]);
+  }, [shopItems, balance, addExperience]);
 
   const buyAccessory = useCallback((id: string): boolean => {
     const item = accessoryItems.find(i => i.id === id);
     if (!item || item.purchased || balance < item.price) return false;
     setBalance(b => b - item.price);
     setAccessoryItems(prev => prev.map(i => i.id === id ? { ...i, purchased: true } : i));
+    addExperience(30);
     return true;
-  }, [accessoryItems, balance]);
+  }, [accessoryItems, balance, addExperience]);
 
   const openBusiness = useCallback((categoryId: string, name: string): boolean => {
     const cat = businessCategories.find(c => c.id === categoryId);
@@ -485,8 +524,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       incomePerHour: cat.baseIncomePerHour,
     });
     setBusinesses(prev => [...prev, newBusiness]);
+    addExperience(75);
     return true;
-  }, [balance]);
+  }, [balance, addExperience]);
 
   const mergeBusiness = useCallback((mergerId: string): boolean => {
     const merger = businessMergers.find(m => m.id === mergerId);
@@ -534,8 +574,10 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return [...filtered, newBiz];
     });
 
+    addExperience(150);
+
     return true;
-  }, [businesses, stockHoldings, cryptoHoldings, stockPrices, cryptoPrices, shopItems]);
+  }, [businesses, stockHoldings, cryptoHoldings, stockPrices, cryptoPrices, shopItems, addExperience]);
 
   const deleteBusiness = useCallback((id: string): boolean => {
     const biz = businesses.find(b => b.id === id);
@@ -685,15 +727,19 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const stockPortfolioValue = stockHoldings.reduce((s, h) => s + (stockPrices[h.assetId]?.current ?? 0) * h.quantity, 0);
   const cryptoPortfolioValue = cryptoHoldings.reduce((s, h) => s + (cryptoPrices[h.assetId]?.current ?? 0) * h.quantity, 0);
   const netWorth = shopTotal + accessoryTotal + businessTotal + stockPortfolioValue + cryptoPortfolioValue;
+  const progression = progressionFromXp(playerXp);
 
   return (
     <GameContext.Provider value={{
-      balance, clickPower, hourlyIncome, hourlyIncomeBusiness, hourlyIncomeRent, hourlyIncomeDividends,
+      balance, clickPower, playerXp, playerLevel: progression.level,
+      levelStartXp: progression.levelStartXp, nextLevelXp: progression.nextLevelXp,
+      levelProgress: progression.progress,
+      hourlyIncome, hourlyIncomeBusiness, hourlyIncomeRent, hourlyIncomeDividends,
       totalEarnedClick, totalEarnedBusiness, totalEarnedRent, totalEarnedDividends, totalEarnedTrading, totalEarnedCrypto, totalEarnedGems,
       upgrades, shopItems, accessoryItems, businesses, passiveIncome, netWorth, totalTaxDue,
       stockHoldings, cryptoHoldings, stockPrices, cryptoPrices, licensePlates,
       click, buyUpgrade, buyShopItem, buyAccessory, openBusiness, mergeBusiness, deleteBusiness, payTaxes,
-      buyStock, sellStock, buyCrypto, sellCrypto, spendBalance, addBalance,
+      buyStock, sellStock, buyCrypto, sellCrypto, spendBalance, addBalance, addExperience,
       addLicensePlate, assignPlate, removePlate, formatMoney,
     }}>
       {children}
