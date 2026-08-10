@@ -10,6 +10,7 @@ import type {
 export interface SerializableGameState {
   balance: number;
   clickPower: number;
+  playerXp: number;
   totalEarnedClick: number;
   totalEarnedBusiness: number;
   totalEarnedRent: number;
@@ -30,6 +31,7 @@ export function serializeState(state: SerializableGameState): Record<string, unk
   return {
     balance: state.balance,
     clickPower: state.clickPower,
+    playerXp: state.playerXp,
     totalEarnedClick: state.totalEarnedClick,
     totalEarnedBusiness: state.totalEarnedBusiness,
     totalEarnedRent: state.totalEarnedRent,
