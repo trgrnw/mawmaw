@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useGame, formatMoney } from '@/context/GameContext';
 import { useAuth } from '@/context/AuthContext';
 import { useI18n } from '@/i18n/I18nContext';
-import { supabase } from '@/integrations/supabase/client';
+import { casinoErrorMessage, invokeCasino } from '@/lib/casinoApi';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -87,6 +87,7 @@ const RocketGame: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   const [myCashedOut, setMyCashedOut] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [apiError, setApiError] = useState('');
 
   // === NEW: Pure server-synced multiplier system ===
   // We store the last two server multiplier readings and interpolate between them
@@ -97,9 +98,15 @@ const RocketGame: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   const roundStatusRef = useRef<string>('');
 
   const callCasino = useCallback(async (action: string, params: Record<string, unknown> = {}) => {
-    const { data, error } = await supabase.functions.invoke('casino', { body: { action, ...params } });
-    if (error) console.error('Casino error:', error);
-    return data;
+    try {
+      const data = await invokeCasino(action, params);
+      setApiError('');
+      return data;
+    } catch (error) {
+      const message = casinoErrorMessage(error);
+      setApiError(message);
+      return { error: message };
+    }
   }, []);
 
   // Poll — only source of truth for multiplier
@@ -223,6 +230,11 @@ const RocketGame: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   return (
     <div className="space-y-4">
       <button onClick={onBack} className="text-sm text-muted-foreground hover:text-foreground">← {t('casino.back')}</button>
+      {apiError && (
+        <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+          Казино недоступно: {apiError}. Проверьте установку Supabase backend.
+        </div>
+      )}
 
       <div className="flex gap-2 overflow-x-auto pb-2">
         {history.map((cp, i) => (
