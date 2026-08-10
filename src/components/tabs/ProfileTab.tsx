@@ -10,6 +10,7 @@ import LicensePlate, { type LicensePlateData } from '@/components/LicensePlate';
 import GameIcon from '@/components/GameIcon';
 import ProfileCustomization, { getBannerCss, getFrameClass } from '@/components/profile/ProfileCustomization';
 import PlayerProfileDialog from '@/components/profile/PlayerProfileDialog';
+import { toast } from 'sonner';
 
 const COLORS = ['#87CEEB', '#ADD8E6', '#B0E0E6', '#5F9EA0', '#4682B4', '#6495ED', '#7EC8E3', '#00CED1'];
 
@@ -60,6 +61,7 @@ const ProfileTab: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [searchCompleted, setSearchCompleted] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
 
   // Load player_id, usernames, customization, and showcase
@@ -105,52 +107,17 @@ const ProfileTab: React.FC = () => {
     const q = searchQuery.trim().replace(/^@/, '');
     if (!q) return;
     setSearchLoading(true);
+    setSearchCompleted(false);
     setSearchResults([]);
-
-    const userIds = new Set<string>();
-    const numId = parseInt(q);
-
-    // 1. By Player ID
-    if (!isNaN(numId)) {
-      const { data } = await supabase
-        .from('public_player_stats')
-        .select('user_id')
-        .eq('player_id', numId)
-        .limit(10);
-      data?.forEach(r => r.user_id && userIds.add(r.user_id as string));
-    }
-
-    // 2. By @username (player_usernames)
-    const { data: unameRows } = await supabase
-      .from('player_usernames')
-      .select('user_id')
-      .ilike('username', `%${q}%`)
-      .limit(30);
-    unameRows?.forEach(r => r.user_id && userIds.add(r.user_id as string));
-
-    // 3. By profile.username
-    const { data: profRows } = await supabase
-      .from('public_player_stats')
-      .select('user_id')
-      .ilike('username', `%${q}%`)
-      .limit(30);
-    profRows?.forEach(r => r.user_id && userIds.add(r.user_id as string));
-
-    if (userIds.size === 0) {
-      setSearchResults([]);
+    const { data: stats, error } = await supabase.rpc('search_public_players' as any, { p_query: q });
+    if (error) {
+      console.error('[Profile] player search failed', error);
+      toast.error('Не удалось выполнить поиск игроков');
       setSearchLoading(false);
+      setSearchCompleted(true);
       return;
     }
-
-    // Fetch all stats in one batch
-    const { data: stats } = await supabase
-      .from('public_player_stats')
-      .select('user_id, username, avatar_emoji, avatar_url, player_id, net_worth, likes_count, avg_rating')
-      .in('user_id', Array.from(userIds))
-      .order('net_worth', { ascending: false })
-      .limit(30);
-
-    setSearchResults((stats || []).map((s: any) => ({
+    const mapped = ((stats as any[]) || []).map((s: any) => ({
       user_id: s.user_id as string,
       username: (s.username as string) || 'Player',
       avatar_emoji: (s.avatar_emoji as string) || '👤',
@@ -159,8 +126,12 @@ const ProfileTab: React.FC = () => {
       net_worth: (s.net_worth as number) ?? null,
       likes_count: (s.likes_count as number) ?? 0,
       avg_rating: (s.avg_rating as number) ?? null,
-    })));
+    }));
+    setSearchResults(mapped);
+    setSearchCompleted(true);
     setSearchLoading(false);
+    if (mapped.length === 0) toast.info('Игрок не найден');
+    else toast.success(mapped.length === 1 ? 'Игрок найден' : `Найдено игроков: ${mapped.length}`);
   };
 
   const shopPurchased = shopItems.filter(i => i.purchased);
@@ -360,6 +331,9 @@ const ProfileTab: React.FC = () => {
                 </button>
               ))}
             </div>
+          )}
+          {searchCompleted && !searchLoading && searchResults.length === 0 && (
+            <p className="rounded-xl border border-dashed p-4 text-center text-sm text-muted-foreground">Игрок не найден</p>
           )}
         </div>
       )}
