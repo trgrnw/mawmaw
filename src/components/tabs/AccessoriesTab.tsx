@@ -12,6 +12,7 @@ import LicensePlate, {
   type LicensePlateData,
 } from '@/components/LicensePlate';
 import PlateSlotAnimation from '@/components/PlateSlotAnimation';
+import { toast } from 'sonner';
 
 type View = 'categories' | 'items';
 
@@ -29,7 +30,7 @@ interface PlayerUsername {
 }
 
 const AccessoriesTab: React.FC = () => {
-  const { accessoryItems, buyAccessory, balance, spendBalance, shopItems, licensePlates, addLicensePlate, assignPlate, removePlate } = useGame();
+  const { accessoryItems, buyAccessory, balance, spendBalance, addBalance, shopItems, licensePlates, addLicensePlate, assignPlate, removePlate } = useGame();
   const { user } = useAuth();
   const { t, td } = useI18n();
   const [view, setView] = useState<View>('categories');
@@ -43,6 +44,7 @@ const AccessoriesTab: React.FC = () => {
   const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null);
   const [usernameChecking, setUsernameChecking] = useState(false);
   const [usernameError, setUsernameError] = useState('');
+  const [usernameBuying, setUsernameBuying] = useState(false);
   const [myUsernames, setMyUsernames] = useState<PlayerUsername[]>([]);
   const [manageDialogOpen, setManageDialogOpen] = useState(false);
 
@@ -66,7 +68,7 @@ const AccessoriesTab: React.FC = () => {
 
   const loadUsernames = async () => {
     if (!user?.id) return;
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('player_usernames')
       .select('id, username, is_active')
       .eq('user_id', user.id)
@@ -108,7 +110,12 @@ const AccessoriesTab: React.FC = () => {
       .select('id')
       .ilike('username', clean)
       .limit(1);
-    setUsernameAvailable(!data || data.length === 0);
+    if (error) {
+      setUsernameAvailable(null);
+      setUsernameError('Не удалось проверить username');
+    } else {
+      setUsernameAvailable(!data || data.length === 0);
+    }
     setUsernameChecking(false);
   };
 
@@ -132,22 +139,28 @@ const AccessoriesTab: React.FC = () => {
     const activeCount = myUsernames.filter(u => u.is_active).length;
     const makeActive = activeCount < MAX_ACTIVE;
     if (!spendBalance(USERNAME_PRICE)) return;
+    setUsernameBuying(true);
     const { error } = await supabase.from('player_usernames').insert({
       user_id: user.id,
       username: clean,
       is_active: makeActive,
     });
     if (error) {
+      addBalance(USERNAME_PRICE);
       if (error.code === '23505') {
         setUsernameAvailable(false);
         setUsernameError(t('acc.already_taken'));
       }
+      toast.error(usernameError || 'Не удалось купить username. Деньги возвращены.');
+      setUsernameBuying(false);
       return;
     }
     setUsernameDialogOpen(false);
     setUsernameInput('');
     setUsernameAvailable(null);
-    loadUsernames();
+    await loadUsernames();
+    setUsernameBuying(false);
+    toast.success(`Username @${clean} куплен`);
   };
 
   const toggleUsernameActive = async (id: string, currentActive: boolean) => {
@@ -487,10 +500,10 @@ const AccessoriesTab: React.FC = () => {
                 <span className="text-sm font-medium text-foreground">{t('acc.cost')}:</span>
                 <span className="font-mono-game text-lg font-bold text-foreground">${formatMoney(USERNAME_PRICE)}</span>
               </div>
-              <button onClick={handleBuyUsername} disabled={!usernameAvailable || balance < USERNAME_PRICE || usernameChecking || !!usernameError}
+              <button onClick={handleBuyUsername} disabled={!usernameAvailable || balance < USERNAME_PRICE || usernameChecking || usernameBuying || !!usernameError}
                 className={`w-full rounded-xl py-2.5 text-sm font-semibold transition-all ${usernameAvailable && balance >= USERNAME_PRICE && !usernameError ? 'bg-primary text-primary-foreground hover:opacity-90 active:scale-[0.98]' : 'bg-muted text-muted-foreground cursor-not-allowed'}`}
               >
-                {t('acc.buy_username')}
+                {usernameBuying ? 'Покупка...' : t('acc.buy_username')}
               </button>
             </div>
           </div>
