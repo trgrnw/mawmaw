@@ -68,6 +68,11 @@ export interface PriceData {
 export interface GameState {
   balance: number;
   clickPower: number;
+  playerXp: number;
+  playerLevel: number;
+  levelStartXp: number;
+  nextLevelXp: number;
+  levelProgress: number;
   hourlyIncome: number;
   hourlyIncomeBusiness: number;
   hourlyIncomeRent: number;
@@ -108,6 +113,7 @@ export interface GameContextType extends GameState {
   sellCrypto: (assetId: string, amount: number) => boolean;
   spendBalance: (amount: number) => boolean;
   addBalance: (amount: number) => void;
+  addExperience: (amount: number) => void;
   addLicensePlate: (plate: LicensePlateState) => void;
   assignPlate: (plateId: string, carId: string | null) => void;
   removePlate: (plateId: string) => void;
