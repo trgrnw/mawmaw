@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <script>
+      // Apply saved theme immediately to prevent flash
+      if (localStorage.getItem('theme') === 'dark') document.documentElement.classList.add('dark');
+    </script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- TODO: Set the document title to the name of your application -->
+    <title>Financial Clicker: Business Empire</title>
+    <meta name="description" content="Financial Clicker: Business Empire — Build your financial empire from scratch!" />
+    <meta name="author" content="Financial Clicker Team" />
+    <link rel="icon" href="/images/logo.png" type="image/png" />
+
+    <meta property="og:title" content="Financial Clicker: Business Empire" />
+    <meta property="og:description" content="Build your financial empire from scratch! Click, invest, and dominate the Forbes list." />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@Lovable" />
+    <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+  </head>
+
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

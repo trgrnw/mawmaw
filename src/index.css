@@ -1,0 +1,273 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+@layer base {
+  :root {
+    --background: 0 0% 98%;
+    --foreground: 210 20% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 210 20% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 210 20% 15%;
+
+    --primary: 197 71% 73%;
+    --primary-foreground: 210 20% 15%;
+
+    --secondary: 195 53% 79%;
+    --secondary-foreground: 210 20% 15%;
+
+    --muted: 200 30% 94%;
+    --muted-foreground: 210 10% 50%;
+
+    --accent: 187 58% 85%;
+    --accent-foreground: 210 20% 15%;
+
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 200 25% 88%;
+    --input: 200 25% 88%;
+    --ring: 197 71% 73%;
+
+    --radius: 0.75rem;
+
+    /* Custom game tokens */
+    --sky-100: 197 71% 93%;
+    --sky-200: 197 71% 85%;
+    --sky-300: 197 71% 73%;
+    --sky-400: 195 53% 64%;
+    --sky-500: 200 60% 50%;
+
+    --card-gradient-start: 195 53% 82%;
+    --card-gradient-end: 197 71% 73%;
+    --card-gradient-shine: 190 80% 90%;
+
+    --sidebar-bg: 197 60% 72%;
+    --sidebar-bg-end: 195 50% 78%;
+    --sidebar-btn: 195 53% 83%;
+    --sidebar-btn-hover: 187 58% 88%;
+    --sidebar-btn-active: 0 0% 100%;
+    --sidebar-text: 210 20% 15%;
+    --sidebar-text-active: 197 71% 40%;
+
+    --success: 142 60% 45%;
+    --success-foreground: 0 0% 100%;
+
+    --sidebar-background: 197 60% 72%;
+    --sidebar-foreground: 210 20% 15%;
+    --sidebar-primary: 197 71% 40%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 0 0% 100%;
+    --sidebar-accent-foreground: 197 71% 40%;
+    --sidebar-border: 197 50% 65%;
+    --sidebar-ring: 197 71% 73%;
+  }
+
+  .dark {
+    --background: 220 15% 10%;
+    --foreground: 210 20% 90%;
+
+    --card: 220 15% 13%;
+    --card-foreground: 210 20% 90%;
+
+    --popover: 220 15% 13%;
+    --popover-foreground: 210 20% 90%;
+
+    --primary: 197 71% 55%;
+    --primary-foreground: 220 15% 10%;
+
+    --secondary: 195 40% 25%;
+    --secondary-foreground: 210 20% 90%;
+
+    --muted: 220 15% 18%;
+    --muted-foreground: 210 10% 55%;
+
+    --accent: 197 50% 25%;
+    --accent-foreground: 210 20% 90%;
+
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 15% 22%;
+    --input: 220 15% 22%;
+    --ring: 197 71% 55%;
+
+    --sky-100: 220 15% 16%;
+    --sky-200: 200 30% 22%;
+    --sky-300: 197 50% 35%;
+    --sky-400: 195 53% 40%;
+    --sky-500: 200 60% 45%;
+
+    --card-gradient-start: 220 20% 16%;
+    --card-gradient-end: 220 20% 20%;
+    --card-gradient-shine: 200 30% 30%;
+
+    --sidebar-bg: 220 20% 14%;
+    --sidebar-bg-end: 220 18% 18%;
+    --sidebar-btn: 220 15% 20%;
+    --sidebar-btn-hover: 220 15% 24%;
+    --sidebar-btn-active: 220 15% 26%;
+    --sidebar-text: 210 20% 90%;
+    --sidebar-text-active: 197 71% 60%;
+
+    --sidebar-background: 220 20% 14%;
+    --sidebar-foreground: 210 20% 90%;
+    --sidebar-primary: 197 71% 55%;
+    --sidebar-primary-foreground: 220 15% 10%;
+    --sidebar-accent: 220 15% 22%;
+    --sidebar-accent-foreground: 197 71% 60%;
+    --sidebar-border: 220 15% 22%;
+    --sidebar-ring: 197 71% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans;
+    font-family: 'Inter', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    background-image: url('/images/bg-light.png');
+    background-repeat: repeat;
+    background-size: 512px 512px;
+  }
+
+  .dark body {
+    background-image: url('/images/bg-dark.png');
+  }
+
+  img, a, button, svg {
+    -webkit-user-drag: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+}
+
+@layer utilities {
+  .glass-card {
+    background: linear-gradient(
+      135deg,
+      hsl(var(--card-gradient-start)),
+      hsl(var(--card-gradient-end))
+    );
+    backdrop-filter: blur(20px);
+    border: 1px solid hsl(var(--card-gradient-shine) / 0.5);
+    box-shadow:
+      0 8px 32px hsl(var(--sky-300) / 0.15),
+      inset 0 1px 0 hsl(var(--card-gradient-shine) / 0.4);
+  }
+
+  .bank-card-gradient {
+    background: linear-gradient(
+      135deg,
+      hsl(210 30% 20%) 0%,
+      hsl(210 35% 30%) 30%,
+      hsl(200 40% 35%) 60%,
+      hsl(195 50% 40%) 100%
+    );
+    box-shadow:
+      0 20px 60px hsl(210 30% 20% / 0.4),
+      0 8px 20px hsl(210 30% 20% / 0.2),
+      inset 0 1px 0 hsl(200 40% 60% / 0.3);
+  }
+
+  .sidebar-gradient {
+    background: linear-gradient(
+      180deg,
+      hsl(var(--sidebar-bg)) 0%,
+      hsl(var(--sidebar-bg-end)) 100%
+    );
+  }
+
+  .click-area-pulse {
+    animation: clickPulse 2s ease-in-out infinite;
+  }
+
+  .stat-card {
+    background: linear-gradient(
+      135deg,
+      hsl(var(--sky-100)) 0%,
+      hsl(var(--sky-200) / 0.5) 100%
+    );
+  }
+
+  .balance-glow {
+    text-shadow: 0 0 30px hsl(var(--sky-300) / 0.5);
+  }
+
+  .font-mono-game {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+@keyframes clickPulse {
+  0%, 100% {
+    border-color: hsl(var(--sky-200));
+    box-shadow: 0 0 0 0 hsl(var(--sky-300) / 0.3);
+  }
+  50% {
+    border-color: hsl(var(--sky-400));
+    box-shadow: 0 0 20px 5px hsl(var(--sky-300) / 0.15);
+  }
+}
+
+@keyframes coinFloat {
+  0% { transform: translateY(0) scale(1); opacity: 1; }
+  100% { transform: translateY(-60px) scale(0.5); opacity: 0; }
+}
+
+.coin-float {
+  animation: coinFloat 0.8s ease-out forwards;
+  pointer-events: none;
+}
+
+/* Custom scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--sky-300) / 0.4) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 3px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: hsl(var(--sky-300) / 0.3);
+  border-radius: 3px;
+  transition: background 0.2s;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--sky-300) / 0.6);
+}
+
+/* Remove number input spinners */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
