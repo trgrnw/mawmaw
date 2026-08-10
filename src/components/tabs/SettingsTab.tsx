@@ -1,9 +1,12 @@
 import React from 'react';
-import { Sun, Moon, Globe, LogOut } from 'lucide-react';
+import { Sun, Moon, Globe, LogOut, Pencil, Loader2 } from 'lucide-react';
 import { useI18n } from '@/i18n/I18nContext';
 import { useAuth } from '@/context/AuthContext';
 import GameIcon from '@/components/GameIcon';
 import type { Locale } from '@/i18n/translations';
+import { Input } from '@/components/ui/input';
+import { toast } from 'sonner';
+import { withTimeout } from '@/lib/async';
 
 const LANGUAGES: { code: Locale; name: string; flag: string }[] = [
   { code: 'ru', name: 'Русский', flag: '🇷🇺' },
@@ -15,7 +18,40 @@ const LANGUAGES: { code: Locale; name: string; flag: string }[] = [
 
 const SettingsTab: React.FC = () => {
   const { locale, setLocale, t } = useI18n();
-  const { user, signOut, username } = useAuth();
+  const { user, signOut, username, changeNickname } = useAuth();
+  const [editingNickname, setEditingNickname] = React.useState(false);
+  const [nicknameInput, setNicknameInput] = React.useState(username);
+  const [nicknameSaving, setNicknameSaving] = React.useState(false);
+
+  React.useEffect(() => setNicknameInput(username), [username]);
+
+  const saveNickname = async () => {
+    const nickname = nicknameInput.trim().replace(/\s+/g, ' ');
+    if (nickname.length < 3 || nickname.length > 24) {
+      toast.error(t('settings.nickname.invalid'));
+      return;
+    }
+    if (nickname === username) {
+      setEditingNickname(false);
+      return;
+    }
+    setNicknameSaving(true);
+    try {
+      const result = await withTimeout(
+        changeNickname(nickname),
+        8_000,
+        t('settings.nickname.timeout'),
+      );
+      if (result.error) throw new Error(result.error);
+      setEditingNickname(false);
+      toast.success(t('settings.nickname.success'));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : t('settings.nickname.error');
+      toast.error(message.toLowerCase().includes('already taken') ? t('settings.nickname.taken') : message);
+    } finally {
+      setNicknameSaving(false);
+    }
+  };
 
   const [theme, setThemeState] = React.useState<'light' | 'dark'>(() => {
     return (localStorage.getItem('theme') as 'light' | 'dark') || 'light';
@@ -41,7 +77,7 @@ const SettingsTab: React.FC = () => {
       {/* Account */}
       {user ? (
         <div className="bg-card rounded-2xl border p-5 space-y-3">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-sm font-semibold text-foreground">{username}</p>
               <p className="text-xs text-muted-foreground">{user.email}</p>
@@ -54,6 +90,33 @@ const SettingsTab: React.FC = () => {
               {t('auth.logout')}
             </button>
           </div>
+          {editingNickname ? (
+            <div className="rounded-xl border bg-muted/20 p-3 space-y-2">
+              <label className="text-xs font-medium text-muted-foreground">{t('settings.nickname.label')}</label>
+              <Input
+                value={nicknameInput}
+                onChange={event => setNicknameInput(event.target.value.slice(0, 24))}
+                onKeyDown={event => event.key === 'Enter' && saveNickname()}
+                placeholder={t('settings.nickname.placeholder')}
+                disabled={nicknameSaving}
+                autoFocus
+              />
+              <p className="text-[11px] text-muted-foreground">{t('settings.nickname.hint')}</p>
+              <div className="flex justify-end gap-2">
+                <button onClick={() => { setEditingNickname(false); setNicknameInput(username); }} disabled={nicknameSaving} className="px-3 py-1.5 rounded-lg border text-xs">
+                  {t('settings.nickname.cancel')}
+                </button>
+                <button onClick={saveNickname} disabled={nicknameSaving} className="px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs flex items-center gap-1.5 disabled:opacity-50">
+                  {nicknameSaving && <Loader2 className="w-3 h-3 animate-spin" />}
+                  {t('settings.nickname.save')}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => setEditingNickname(true)} className="flex items-center gap-2 text-xs text-primary hover:underline">
+              <Pencil className="w-3 h-3" /> {t('settings.nickname.change')}
+            </button>
+          )}
         </div>
       ) : (
         <div className="bg-card rounded-2xl border p-5">

@@ -15,6 +15,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   updateProfile: (data: { username?: string; avatarEmoji?: string; avatarUrl?: string }) => Promise<void>;
+  changeNickname: (nickname: string) => Promise<{ error: string | null }>;
   refreshBan: () => Promise<void>;
 }
 
@@ -133,8 +134,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (data.avatarUrl !== undefined) setAvatarUrl(data.avatarUrl);
   };
 
+  const changeNickname = async (nickname: string) => {
+    if (!user) return { error: 'Authentication required' };
+    const { data, error } = await supabase.rpc('change_profile_nickname' as any, {
+      p_nickname: nickname,
+    });
+    if (error) return { error: error.message };
+    const nextNickname = String(data || nickname).trim();
+    setUsername(nextNickname);
+    return { error: null };
+  };
+
   return (
-    <AuthContext.Provider value={{ user, session, loading, username, avatarEmoji, avatarUrl, isBanned, banChecked, signUp, signIn, signOut, updateProfile, refreshBan }}>
+    <AuthContext.Provider value={{ user, session, loading, username, avatarEmoji, avatarUrl, isBanned, banChecked, signUp, signIn, signOut, updateProfile, changeNickname, refreshBan }}>
       {children}
     </AuthContext.Provider>
   );
