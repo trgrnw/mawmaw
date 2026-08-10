@@ -6,6 +6,7 @@ import GameIcon from '@/components/GameIcon';
 import { Loader2 } from 'lucide-react';
 
 interface ForbesEntry {
+  user_id: string;
   username: string | null;
   avatar_emoji: string | null;
   player_id: number | null;
@@ -36,32 +37,38 @@ const ForbesTab: React.FC = () => {
   const [entries, setEntries] = useState<ForbesEntry[]>([]);
   const [clans, setClans] = useState<ClanEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [refreshKey, setRefreshKey] = useState(0);
   const initialLoadDone = useRef(false);
 
   useEffect(() => {
     const fetchData = async () => {
       if (!initialLoadDone.current) setLoading(true);
-      if (scope === 'clans') {
-        const { data } = await supabase.from('clan_leaderboard').select('*').order('total_net_worth', { ascending: false }).limit(100);
-        setClans((data as any) || []);
-      } else if (scope === 'players') {
-        const { data } = await supabase
-          .from('forbes_leaderboard')
-          .select('*')
-          .order('net_worth', { ascending: false })
-          .limit(100);
-        setEntries((data as ForbesEntry[]) || []);
-      } else {
-        // friends — placeholder
-        setEntries([]);
+      setError('');
+      try {
+        if (scope === 'clans') {
+          const { data, error: queryError } = await supabase.from('clan_leaderboard').select('*').order('total_net_worth', { ascending: false }).limit(100);
+          if (queryError) throw queryError;
+          setClans((data as any) || []);
+        } else if (scope === 'players') {
+          const { data, error: queryError } = await supabase.rpc('get_forbes_players' as any);
+          if (queryError) throw queryError;
+          setEntries((data as unknown as ForbesEntry[]) || []);
+        } else {
+          setEntries([]);
+        }
+      } catch (fetchError) {
+        console.error('[Forbes] load failed', fetchError);
+        setError('Не удалось загрузить рейтинг. Попробуйте ещё раз.');
+      } finally {
+        setLoading(false);
+        initialLoadDone.current = true;
       }
-      setLoading(false);
-      initialLoadDone.current = true;
     };
     fetchData();
     const interval = setInterval(fetchData, 5000);
     return () => clearInterval(interval);
-  }, [scope, period, region]);
+  }, [scope, period, region, refreshKey]);
 
   return (
     <div className="max-w-2xl mx-auto space-y-4">
@@ -98,7 +105,15 @@ const ForbesTab: React.FC = () => {
         </p>
       )}
 
-      {loading ? (
+      {error ? (
+        <div className="stat-card rounded-2xl p-8 text-center min-h-[200px] flex flex-col items-center justify-center gap-3">
+          <GameIcon name="empty" size={48} className="text-destructive" />
+          <p className="text-sm text-destructive">{error}</p>
+          <button onClick={() => { initialLoadDone.current = false; setRefreshKey(key => key + 1); }} className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground">
+            Повторить
+          </button>
+        </div>
+      ) : loading ? (
         <div className="stat-card rounded-2xl p-8 flex items-center justify-center min-h-[200px]">
           <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
         </div>
