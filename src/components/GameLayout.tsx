@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useGame, formatMoney } from '@/context/GameContext';
 import { useAuth } from '@/context/AuthContext';
 import { useI18n } from '@/i18n/I18nContext';
@@ -147,22 +148,22 @@ const GameLayout: React.FC = () => {
         {/* Staff & auth */}
         <div className="mt-auto space-y-1">
           {isStaff && (
-            <a
-              href="/admin"
+            <Link
+              to="/admin"
               className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-yellow-600 dark:text-yellow-400 hover:bg-sidebar-btn-hover"
             >
               <GameIcon name="admin" size={18} themed />
               <span>Админка</span>
-            </a>
+            </Link>
           )}
           {!user && (
-            <a
-              href="/auth"
+            <Link
+              to="/auth"
               className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-foreground/80 hover:bg-sidebar-btn-hover"
             >
               <GameIcon name="login" size={18} />
               <span>{t('auth.login')}</span>
-            </a>
+            </Link>
           )}
         </div>
       </aside>
