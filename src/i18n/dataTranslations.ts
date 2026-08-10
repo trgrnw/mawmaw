@@ -164,7 +164,7 @@ export const dataTranslations: Record<string, Record<string, string>> = {
     'd.shop.isl2': '中型岛屿', 'd.shop.isl2.d': '基础设施齐全',
     'd.shop.isl3': '群岛', 'd.shop.isl3.d': '私人群岛',
 
-    'd.engine.df': 'DF（标准）', 'd.trim.standard': '标准', 'd.trim.premium': '豪华',
+    'd.engine.df': 'DF（标准）', 'd.engine.bst': 'BST', 'd.engine.s': 'S', 'd.trim.standard': '标准', 'd.trim.premium': '豪华',
     'd.finish.standard': '标准', 'd.finish.premium': '豪华',
 
     'd.acccat.nft': 'NFT', 'd.acccat.nft.d': '数字收藏品',
@@ -273,7 +273,7 @@ export const dataTranslations: Record<string, Record<string, string>> = {
     'd.shop.isl2': 'Średnia wyspa', 'd.shop.isl2.d': 'Wyspa z infrastrukturą',
     'd.shop.isl3': 'Archipelag', 'd.shop.isl3.d': 'Grupa prywatnych wysp',
 
-    'd.engine.df': 'DF (Standard)', 'd.trim.standard': 'Standard', 'd.trim.premium': 'Premium',
+    'd.engine.df': 'DF (Standard)', 'd.engine.bst': 'BST', 'd.engine.s': 'S', 'd.trim.standard': 'Standard', 'd.trim.premium': 'Premium',
     'd.finish.standard': 'Standard', 'd.finish.premium': 'Premium',
 
     'd.acccat.nft': 'NFT', 'd.acccat.nft.d': 'Kolekcje cyfrowe',
@@ -382,7 +382,7 @@ export const dataTranslations: Record<string, Record<string, string>> = {
     'd.shop.isl2': 'Mittlere Insel', 'd.shop.isl2.d': 'Insel mit Infrastruktur',
     'd.shop.isl3': 'Archipel', 'd.shop.isl3.d': 'Gruppe von Privatinseln',
 
-    'd.engine.df': 'DF (Standard)', 'd.trim.standard': 'Standard', 'd.trim.premium': 'Premium',
+    'd.engine.df': 'DF (Standard)', 'd.engine.bst': 'BST', 'd.engine.s': 'S', 'd.trim.standard': 'Standard', 'd.trim.premium': 'Premium',
     'd.finish.standard': 'Standard', 'd.finish.premium': 'Premium',
 
     'd.acccat.nft': 'NFT', 'd.acccat.nft.d': 'Digitale Sammlungen',
