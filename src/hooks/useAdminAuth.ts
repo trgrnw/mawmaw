@@ -8,7 +8,6 @@ interface AdminAuthState {
   isLoading: boolean;
   isStaff: boolean;
   role: AppRole | null;
-  isPasswordVerified: boolean;
 }
 
 export function useAdminAuth() {
@@ -17,12 +16,11 @@ export function useAdminAuth() {
     isLoading: true,
     isStaff: false,
     role: null,
-    isPasswordVerified: false,
   });
 
   useEffect(() => {
     if (!user) {
-      setState({ isLoading: false, isStaff: false, role: null, isPasswordVerified: false });
+      setState({ isLoading: false, isStaff: false, role: null });
       return;
     }
 
@@ -34,16 +32,6 @@ export function useAdminAuth() {
           .eq('user_id', user.id);
 
         if (error || !data || data.length === 0) {
-          // Try auto-assign owner if no roles exist yet
-          try {
-            const { data: initData, error: initError } = await supabase.functions.invoke('admin-init');
-            if (!initError && initData?.success) {
-              setState(prev => ({ ...prev, isLoading: false, isStaff: true, role: 'owner' as AppRole }));
-              return;
-            }
-          } catch {
-            // Ignore — not the first user or function failed
-          }
           setState(prev => ({ ...prev, isLoading: false, isStaff: false, role: null }));
           return;
         }
@@ -65,33 +53,6 @@ export function useAdminAuth() {
     checkRole();
   }, [user]);
 
-  const verifyPassword = (password: string): boolean => {
-    // The admin password - in production this would be verified server-side
-    // For now we use a simple client-side check with a hashed comparison
-    const ADMIN_PASSWORD = 'fc_admin_2024'; // You can change this
-    const isValid = password === ADMIN_PASSWORD;
-    
-    if (isValid) {
-      setState(prev => ({ ...prev, isPasswordVerified: true }));
-      sessionStorage.setItem('admin_verified', 'true');
-    }
-    
-    return isValid;
-  };
-
-  const checkSessionPassword = (): boolean => {
-    const verified = sessionStorage.getItem('admin_verified') === 'true';
-    if (verified && !state.isPasswordVerified) {
-      setState(prev => ({ ...prev, isPasswordVerified: true }));
-    }
-    return verified;
-  };
-
-  const logout = () => {
-    sessionStorage.removeItem('admin_verified');
-    setState(prev => ({ ...prev, isPasswordVerified: false }));
-  };
-
   const canManageUsers = state.role === 'owner' || state.role === 'admin';
   const canManageEconomy = state.role === 'owner' || state.role === 'admin';
   const canManageRoles = state.role === 'owner';
@@ -99,9 +60,6 @@ export function useAdminAuth() {
 
   return {
     ...state,
-    verifyPassword,
-    checkSessionPassword,
-    logout,
     canManageUsers,
     canManageEconomy,
     canManageRoles,
