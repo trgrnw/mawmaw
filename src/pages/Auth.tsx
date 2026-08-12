@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useI18n } from '@/i18n/I18nContext';
-import { Navigate } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 
 const Auth: React.FC = () => {
   const { user, loading, signUp, signIn } = useAuth();
@@ -74,6 +74,8 @@ const Auth: React.FC = () => {
                 onChange={e => setUsername(e.target.value)}
                 className="w-full px-4 py-2.5 rounded-xl border bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                 maxLength={20}
+                autoComplete="nickname"
+                required
               />
             )}
             <input
@@ -83,7 +85,11 @@ const Auth: React.FC = () => {
               onChange={e => setEmail(e.target.value)}
               className="w-full px-4 py-2.5 rounded-xl border bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
               required
+              autoComplete="email"
             />
+            {!isLogin && (
+              <p className="px-1 text-[11px] text-muted-foreground">{t('auth.email_hint')}</p>
+            )}
             <input
               type="password"
               placeholder={t('auth.password')}
@@ -92,6 +98,7 @@ const Auth: React.FC = () => {
               className="w-full px-4 py-2.5 rounded-xl border bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
               required
               minLength={6}
+              autoComplete={isLogin ? 'current-password' : 'new-password'}
             />
 
             {error && <p className="text-destructive text-xs">{error}</p>}
@@ -111,7 +118,7 @@ const Auth: React.FC = () => {
           {t('auth.play_local')}
         </p>
         <div className="text-center">
-          <a href="/" className="text-sm text-primary hover:underline">{t('auth.play_without')}</a>
+          <Link to="/" className="text-sm text-primary hover:underline">{t('auth.play_without')}</Link>
         </div>
       </div>
     </div>
