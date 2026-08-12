@@ -4,6 +4,7 @@ import { useAuth } from '@/context/AuthContext';
 import { formatMoney } from '@/context/GameContext';
 import { toast } from 'sonner';
 import GameIcon from '@/components/GameIcon';
+import { useI18n } from '@/i18n/I18nContext';
 
 interface Props { onBack: () => void; }
 
@@ -23,6 +24,7 @@ const SEG_DEG = 360 / SEGMENTS.length;
 
 const DailyWheelGame: React.FC<Props> = ({ onBack }) => {
   const { user } = useAuth();
+  const { t } = useI18n();
   const [rotation, setRotation] = useState(0);
   const [spinning, setSpinning] = useState(false);
   const [lastSpin, setLastSpin] = useState<Date | null>(null);
@@ -83,14 +85,14 @@ const DailyWheelGame: React.FC<Props> = ({ onBack }) => {
         setSpinning(false);
         setLastSpin(new Date());
         setRecentPrize({ label: result.label, amount: result.amount });
-        toast.success(`🎉 Вы выиграли ${result.label}!`, {
-          description: `$${formatMoney(result.amount)} зачислено на баланс`,
+        toast.success(`🎉 ${t('wheel.won')} ${result.label}!`, {
+          description: `$${formatMoney(result.amount)} ${t('wheel.credited')}`,
           duration: 6000,
         });
       }, 5200);
     } catch (e: any) {
       setSpinning(false);
-      toast.error(e.message || 'Ошибка вращения');
+      toast.error(e.message || t('wheel.error'));
     }
   };
 
@@ -105,18 +107,18 @@ const DailyWheelGame: React.FC<Props> = ({ onBack }) => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <button onClick={onBack} className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1">
-          <GameIcon name="arrow-left" size={16} /> Назад
+          <GameIcon name="arrow-left" size={16} /> {t('casino.back')}
         </button>
         {user && (
           <div className="text-right text-xs text-muted-foreground">
-            {cooldownMs > 0 ? `Следующее вращение через: ${formatCooldown(cooldownMs)}` : 'Колесо доступно!'}
+            {cooldownMs > 0 ? `${t('wheel.next')}: ${formatCooldown(cooldownMs)}` : t('wheel.available')}
           </div>
         )}
       </div>
 
       <div>
-        <h2 className="text-2xl font-bold flex items-center gap-2">🎡 Колесо фортуны</h2>
-        <p className="text-sm text-muted-foreground mt-1">Вращайте бесплатно раз в 24 часа и выигрывайте до $10,000,000!</p>
+        <h2 className="text-2xl font-bold flex items-center gap-2">🎡 {t('wheel.title')}</h2>
+        <p className="text-sm text-muted-foreground mt-1">{t('wheel.subtitle')}</p>
       </div>
 
       <div className="relative mx-auto" style={{ width: 400, maxWidth: '90vw' }}>
@@ -179,19 +181,19 @@ const DailyWheelGame: React.FC<Props> = ({ onBack }) => {
               : 'bg-muted text-muted-foreground cursor-not-allowed'
           }`}
         >
-          {spinning ? 'Вращается...' : cooldownMs > 0 ? `Доступно через ${formatCooldown(cooldownMs)}` : '🎲 Крутить колесо'}
+          {spinning ? t('wheel.spinning') : cooldownMs > 0 ? `${t('wheel.available_in')} ${formatCooldown(cooldownMs)}` : `🎲 ${t('wheel.spin')}`}
         </button>
-        {!user && <p className="text-xs text-muted-foreground">Войдите, чтобы крутить колесо</p>}
+        {!user && <p className="text-xs text-muted-foreground">{t('wheel.login')}</p>}
         {recentPrize && !spinning && (
           <div className="bg-card rounded-xl border p-3 text-center">
-            <p className="text-xs text-muted-foreground">Последний приз</p>
+            <p className="text-xs text-muted-foreground">{t('wheel.last_prize')}</p>
             <p className="text-xl font-bold text-foreground">{recentPrize.label}</p>
           </div>
         )}
       </div>
 
       <div className="bg-card rounded-2xl border p-4">
-        <h4 className="text-sm font-semibold mb-2">Шансы выпадения</h4>
+        <h4 className="text-sm font-semibold mb-2">{t('wheel.chances')}</h4>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
           {[
             { l: '$1K', p: '25%' }, { l: '$5K', p: '20%' }, { l: '$10K', p: '15%' }, { l: '$50K', p: '12%' },
