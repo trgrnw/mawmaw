@@ -58,7 +58,7 @@ const ForbesTab: React.FC = () => {
           const { data, error: queryError } = await withTimeout(
             supabase.rpc('get_forbes_players' as any),
             8_000,
-            'Рейтинг не отвечает',
+            t('forbes.timeout'),
           );
           if (queryError) throw queryError;
           setEntries((data as unknown as ForbesEntry[]) || []);
@@ -67,7 +67,7 @@ const ForbesTab: React.FC = () => {
         }
       } catch (fetchError) {
         console.error('[Forbes] load failed', fetchError);
-        setError('Не удалось загрузить рейтинг. Попробуйте ещё раз.');
+        setError(t('forbes.load_error'));
       } finally {
         setLoading(false);
         initialLoadDone.current = true;
@@ -90,26 +90,26 @@ const ForbesTab: React.FC = () => {
 
       {/* Filters */}
       <div className="flex flex-wrap gap-2">
-        <FilterGroup label="Что" value={scope} onChange={v => setScope(v as ScopeType)} options={[
-          { value: 'players', label: '👥 Игроки' },
-          { value: 'clans', label: '🛡️ Кланы' },
-          { value: 'friends', label: '⭐ Друзья' },
+        <FilterGroup label={t('forbes.filter.what')} value={scope} onChange={v => setScope(v as ScopeType)} options={[
+          { value: 'players', label: `👥 ${t('forbes.scope.players')}` },
+          { value: 'clans', label: `🛡️ ${t('forbes.scope.clans')}` },
+          { value: 'friends', label: `⭐ ${t('forbes.scope.friends')}` },
         ]} />
-        <FilterGroup label="Период" value={period} onChange={v => setPeriod(v as PeriodType)} options={[
-          { value: 'all', label: 'Всё время' },
-          { value: 'day', label: 'День' },
-          { value: 'week', label: 'Неделя' },
-          { value: 'month', label: 'Месяц' },
+        <FilterGroup label={t('forbes.filter.period')} value={period} onChange={v => setPeriod(v as PeriodType)} options={[
+          { value: 'all', label: t('forbes.period.all') },
+          { value: 'day', label: t('forbes.period.day') },
+          { value: 'week', label: t('forbes.period.week') },
+          { value: 'month', label: t('forbes.period.month') },
         ]} />
-        <FilterGroup label="Регион" value={region} onChange={v => setRegion(v as RegionType)} options={[
-          { value: 'global', label: '🌍 Глобально' },
-          { value: 'europe', label: '🇪🇺 Европа' },
-          { value: 'asia', label: '🌏 Азия' },
+        <FilterGroup label={t('forbes.filter.region')} value={region} onChange={v => setRegion(v as RegionType)} options={[
+          { value: 'global', label: `🌍 ${t('forbes.region.global')}` },
+          { value: 'europe', label: `🇪🇺 ${t('forbes.region.europe')}` },
+          { value: 'asia', label: `🌏 ${t('forbes.region.asia')}` },
         ]} />
       </div>
       {(period !== 'all' || region !== 'global' || scope === 'friends') && (
         <p className="text-xs text-muted-foreground bg-muted/30 rounded-lg p-2">
-          ℹ️ {scope === 'friends' ? 'Система друзей будет добавлена позже' : 'Фильтр применится после интеграции Steam API'}
+          ℹ️ {scope === 'friends' ? t('forbes.friends_soon') : t('forbes.filter_soon')}
         </p>
       )}
 
@@ -118,7 +118,7 @@ const ForbesTab: React.FC = () => {
           <GameIcon name="empty" size={48} className="text-destructive" />
           <p className="text-sm text-destructive">{error}</p>
           <button onClick={() => { initialLoadDone.current = false; setRefreshKey(key => key + 1); }} className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground">
-            Повторить
+            {t('forbes.retry')}
           </button>
         </div>
       ) : loading ? (
@@ -127,11 +127,11 @@ const ForbesTab: React.FC = () => {
         </div>
       ) : scope === 'clans' ? (
         clans.length === 0 ? (
-          <EmptyState text="Кланов ещё нет" />
+          <EmptyState text={t('forbes.no_clans')} />
         ) : (
           <div className="bg-card rounded-2xl border overflow-hidden">
             <div className="grid grid-cols-[3rem_1fr_auto] gap-2 px-4 py-3 bg-muted/30 text-xs font-semibold text-muted-foreground">
-              <span>Ранг</span><span>Клан</span><span>Состояние</span>
+              <span>{t('forbes.rank')}</span><span>{t('forbes.clan')}</span><span>{t('forbes.networth')}</span>
             </div>
             <div className="divide-y">
               {clans.map((c, i) => (
@@ -141,7 +141,7 @@ const ForbesTab: React.FC = () => {
                     <span className="text-xl">{c.emoji}</span>
                     <div className="min-w-0">
                       <span className="text-sm font-medium truncate block">[{c.tag}] {c.name}</span>
-                      <span className="text-[10px] text-muted-foreground">{c.member_count} уч. · {c.owner_name}</span>
+                      <span className="text-[10px] text-muted-foreground">{c.member_count} {t('forbes.members')} · {c.owner_name}</span>
                     </div>
                   </div>
                   <span className="font-mono-game text-sm font-semibold">${formatMoney(c.total_net_worth)}</span>
@@ -151,7 +151,7 @@ const ForbesTab: React.FC = () => {
           </div>
         )
       ) : scope === 'friends' ? (
-        <EmptyState text="Добавьте друзей, чтобы видеть их в этом списке (скоро)" />
+        <EmptyState text={t('forbes.add_friends')} />
       ) : entries.length === 0 ? (
         <EmptyState text={t('forbes.empty')} />
       ) : (
@@ -168,7 +168,7 @@ const ForbesTab: React.FC = () => {
                 <div className="flex items-center gap-2 min-w-0">
                   <GameIcon name="profile" size={20} className="text-muted-foreground flex-shrink-0" />
                   <div className="min-w-0">
-                    <span className="text-sm font-medium truncate block">{e.username || 'Player'}{e.user_id === user?.id ? ' (Вы)' : ''}</span>
+                    <span className="text-sm font-medium truncate block">{e.username || 'Player'}{e.user_id === user?.id ? ` (${t('forbes.you')})` : ''}</span>
                     {e.player_id && <span className="text-[10px] text-muted-foreground">ID: {e.player_id.toLocaleString()}</span>}
                   </div>
                 </div>

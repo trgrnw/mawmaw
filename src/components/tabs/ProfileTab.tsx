@@ -114,7 +114,7 @@ const ProfileTab: React.FC = () => {
       const { data: stats, error } = await withTimeout(
         supabase.rpc('search_public_players' as any, { p_query: q }),
         8_000,
-        'Поиск игроков занял слишком много времени',
+        t('profile.search_timeout'),
       );
       if (error) throw error;
       const mapped = ((stats as any[]) || []).map((s: any) => ({
@@ -128,11 +128,11 @@ const ProfileTab: React.FC = () => {
       avg_rating: (s.avg_rating as number) ?? null,
       }));
       setSearchResults(mapped);
-      if (mapped.length === 0) toast.info('Игрок не найден');
-      else toast.success(mapped.length === 1 ? 'Игрок найден' : `Найдено игроков: ${mapped.length}`);
+      if (mapped.length === 0) toast.info(t('profile.not_found'));
+      else toast.success(mapped.length === 1 ? t('profile.found') : `${t('profile.found_count')}: ${mapped.length}`);
     } catch (error) {
       console.error('[Profile] player search failed', error);
-      toast.error(error instanceof Error ? error.message : 'Не удалось выполнить поиск игроков');
+      toast.error(error instanceof Error ? error.message : t('profile.search_error'));
     } finally {
       setSearchLoading(false);
       setSearchCompleted(true);
@@ -248,7 +248,7 @@ const ProfileTab: React.FC = () => {
               onClick={() => setCustomOpen(true)}
               className="absolute top-3 right-3 px-3 py-1.5 bg-black/40 hover:bg-black/60 backdrop-blur text-white rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all"
             >
-              ✏️ Кастомизация
+              ✏️ {t('profile.customize')}
             </button>
             <div className="absolute -bottom-10 left-5">
               <div className={`w-20 h-20 rounded-full bg-card border-4 border-card flex items-center justify-center text-4xl overflow-hidden ${getFrameClass(customization.frame_id)}`}>
@@ -338,7 +338,7 @@ const ProfileTab: React.FC = () => {
             </div>
           )}
           {searchCompleted && !searchLoading && searchResults.length === 0 && (
-            <p className="rounded-xl border border-dashed p-4 text-center text-sm text-muted-foreground">Игрок не найден</p>
+            <p className="rounded-xl border border-dashed p-4 text-center text-sm text-muted-foreground">{t('profile.not_found')}</p>
           )}
         </div>
       )}
