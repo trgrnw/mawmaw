@@ -7,6 +7,7 @@ import type { Locale } from '@/i18n/translations';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { withTimeout } from '@/lib/async';
+import { Link } from 'react-router-dom';
 
 const LANGUAGES: { code: Locale; name: string; flag: string }[] = [
   { code: 'ru', name: 'Русский', flag: '🇷🇺' },
@@ -125,9 +126,9 @@ const SettingsTab: React.FC = () => {
         </div>
       ) : (
         <div className="bg-card rounded-2xl border p-5">
-          <a href="/auth" className="text-sm text-primary hover:underline">
+          <Link to="/auth" className="text-sm text-primary hover:underline">
             {t('auth.login')} / {t('auth.signup')} →
-          </a>
+          </Link>
         </div>
       )}
 
