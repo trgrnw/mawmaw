@@ -47,7 +47,12 @@ const SettingsTab: React.FC = () => {
       toast.success(t('settings.nickname.success'));
     } catch (error) {
       const message = error instanceof Error ? error.message : t('settings.nickname.error');
-      toast.error(message.toLowerCase().includes('already taken') ? t('settings.nickname.taken') : message);
+      const normalized = message.toLowerCase();
+      if (normalized.includes('schema cache') || normalized.includes('could not find the function')) {
+        toast.error(t('settings.nickname.backend_missing'));
+      } else {
+        toast.error(normalized.includes('already taken') ? t('settings.nickname.taken') : message);
+      }
     } finally {
       setNicknameSaving(false);
     }
