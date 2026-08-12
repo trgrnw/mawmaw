@@ -2,6 +2,18 @@ name: Deploy Supabase backend
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'supabase/migrations/**'
+      - 'supabase/functions/**'
+      - 'supabase/config.toml'
+      - '.github/workflows/deploy-supabase.yml'
+
+concurrency:
+  group: supabase-production
+  cancel-in-progress: false
 
 permissions:
   contents: read
