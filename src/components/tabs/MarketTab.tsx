@@ -34,7 +34,7 @@ type SortType = 'newest' | 'oldest' | 'cheapest' | 'expensive' | 'ending_soon';
 const AUCTION_DURATIONS = [1, 6, 12, 24, 48];
 
 const MarketTab: React.FC = () => {
-  const { balance, spendBalance, addLicensePlate, licensePlates } = useGame();
+  const { balance, replaceBalance, addLicensePlate, removePlate, licensePlates } = useGame();
   const { user } = useAuth();
   const { t } = useI18n();
 
@@ -90,6 +90,15 @@ const MarketTab: React.FC = () => {
         .order('sold_at', { ascending: false, nullsFirst: false })
         .limit(100);
       hdata = data || [];
+      hdata
+        .filter(row => row.status === 'sold' && row.buyer_id === user.id && row.item_type === 'license_plate')
+        .forEach(row => {
+          const plate = row.item_data as Record<string, unknown>;
+          addLicensePlate({
+            id: String(plate.plate_id), text: String(plate.text), country: String(plate.country),
+            assignedTo: null, isCustom: Boolean(plate.isCustom),
+          });
+        });
     }
 
     // Favorites
@@ -122,7 +131,7 @@ const MarketTab: React.FC = () => {
     setHistory(hdata.map(enrich));
     setLoading(false);
     initialLoadDone.current = true;
-  }, [user?.id]);
+  }, [user?.id, addLicensePlate]);
 
   useEffect(() => { loadAll(); }, [loadAll]);
 
@@ -199,6 +208,7 @@ const MarketTab: React.FC = () => {
         listing_kind: 'fixed',
       } as any);
       if (error) throw error;
+      if (sellOpen === 'license_plate') removePlate(selectedSellId);
       closeSell();
       loadAll();
     } catch (e: any) {
@@ -230,6 +240,7 @@ const MarketTab: React.FC = () => {
         p_duration_hours: auctionDuration,
       });
       if (error) throw error;
+      if (sellOpen === 'license_plate') removePlate(selectedSellId);
       closeSell();
       loadAll();
     } catch (e: any) {
@@ -248,9 +259,12 @@ const MarketTab: React.FC = () => {
     if (balance < selectedListing.price) return;
     setBusy(true); setErrorMsg(null);
     try {
-      const { error } = await supabase.rpc('buy_market_listing', { p_listing_id: selectedListing.id });
+      const { data, error } = await supabase.rpc('buy_market_listing', { p_listing_id: selectedListing.id });
       if (error) throw error;
-      spendBalance(selectedListing.price);
+      const result = data as Record<string, unknown> | null;
+      const newBalance = Number(result?.new_balance);
+      if (!Number.isFinite(newBalance)) throw new Error('Server returned an invalid balance');
+      replaceBalance(newBalance);
       if (selectedListing.item_type === 'license_plate') {
         const d = selectedListing.item_data as any;
         addLicensePlate({
@@ -285,10 +299,18 @@ const MarketTab: React.FC = () => {
       const { error } = await supabase.rpc('cancel_auction' as any, { p_listing_id: l.id });
       if (error) { alert(error.message); return; }
     } else {
-      await supabase.from('market_listings').update({ status: 'cancelled' }).eq('id', l.id);
+      const { error } = await supabase.from('market_listings').update({ status: 'cancelled' }).eq('id', l.id);
+      if (error) { setErrorMsg(error.message); return; }
       if (l.item_type === 'username') {
         await supabase.from('player_usernames').update({ is_active: false }).eq('id', (l.item_data as any).username_id);
       }
+    }
+    if (l.item_type === 'license_plate') {
+      const plate = l.item_data as any;
+      addLicensePlate({
+        id: String(plate.plate_id), text: String(plate.text), country: String(plate.country),
+        assignedTo: null, isCustom: Boolean(plate.isCustom),
+      });
     }
     loadAll();
   };
