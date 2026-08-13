@@ -1,418 +1,132 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
+import { toast } from 'sonner';
+import GameIcon from '@/components/GameIcon';
 import { useGame, formatMoney } from '@/context/GameContext';
-import { useI18n } from '@/i18n/I18nContext';
 import { businessCategories, generateBusinessName } from '@/data/businessNames';
 import { businessMergers } from '@/data/mergerData';
-import GameIcon from '@/components/GameIcon';
-import { toast } from 'sonner';
+import { useI18n } from '@/i18n/I18nContext';
 
-type View = 'main' | 'open' | 'name' | 'merge';
+type Section = 'portfolio' | 'launch' | 'mergers';
 
 const BusinessTab: React.FC = () => {
-  const { businesses, balance, hourlyIncomeBusiness, totalTaxDue, openBusiness, mergeBusiness, deleteBusiness, payTaxes, stockHoldings, cryptoHoldings, stockPrices, cryptoPrices, shopItems } = useGame();
+  const game = useGame();
   const { t, td } = useI18n();
-  const [view, setView] = useState<View>('main');
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
-  const [businessName, setBusinessName] = useState('');
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-  const [openingBusiness, setOpeningBusiness] = useState(false);
+  const [section, setSection] = useState<Section>('portfolio');
+  const [categoryId, setCategoryId] = useState(businessCategories[0]?.id ?? '');
+  const [name, setName] = useState('');
+  const [opening, setOpening] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const category = businessCategories.find(item => item.id === categoryId);
 
-  const selectedCategory = businessCategories.find(c => c.id === selectedCategoryId);
+  const assets = useMemo(() => ({
+    stocks: game.stockHoldings.reduce((sum, item) => sum + (game.stockPrices[item.assetId]?.current ?? 0) * item.quantity, 0),
+    crypto: game.cryptoHoldings.reduce((sum, item) => sum + (game.cryptoPrices[item.assetId]?.current ?? 0) * item.quantity, 0),
+    realEstate: game.shopItems.filter(item => item.purchased && item.category === 'realestate').reduce((sum, item) => sum + item.price, 0),
+    islands: game.shopItems.filter(item => item.purchased && item.category === 'islands').length,
+  }), [game.stockHoldings, game.stockPrices, game.cryptoHoldings, game.cryptoPrices, game.shopItems]);
 
-  const handleSelectCategory = (catId: string) => {
-    setSelectedCategoryId(catId);
-    setBusinessName('');
-    setView('name');
-  };
-
-  const handleGenerateName = () => {
-    if (selectedCategoryId) {
-      setBusinessName(generateBusinessName(selectedCategoryId));
-    }
-  };
-
-  const handleOpenBusiness = async () => {
-    if (selectedCategoryId && businessName.trim() && !openingBusiness) {
-      setOpeningBusiness(true);
-      try {
-        const success = await openBusiness(selectedCategoryId, businessName.trim());
-      if (success) {
-        setView('main');
-        setSelectedCategoryId(null);
-        setBusinessName('');
-          toast.success('Бизнес сохранён в Supabase');
-        }
-      } catch (error) {
-        console.error('[BusinessTab] cloud-confirmed business purchase failed', error);
-        toast.error('Бизнес сохранён на устройстве. Облачная синхронизация будет повторена автоматически.');
-        setView('main');
-      } finally {
-        setOpeningBusiness(false);
+  const createBusiness = async () => {
+    if (!category || !name.trim() || opening) return;
+    setOpening(true);
+    try {
+      if (!await game.openBusiness(category.id, name.trim())) {
+        toast.error(t('biz.insufficient'));
+        return;
       }
+      toast.success(t('biz.open_btn'));
+      setName('');
+      setSection('portfolio');
+    } catch (error) {
+      console.error('[BusinessTab] create failed', error);
+      toast.error('Не удалось сохранить бизнес. Попробуйте ещё раз.');
+    } finally {
+      setOpening(false);
     }
   };
 
-  const handleDeleteBusiness = (bizId: string) => {
-    if (confirmDeleteId === bizId) {
-      deleteBusiness(bizId);
-      setConfirmDeleteId(null);
-    } else {
-      setConfirmDeleteId(bizId);
-      setTimeout(() => setConfirmDeleteId(null), 5000);
-    }
+  const sell = (id: string) => {
+    if (deleteId !== id) return setDeleteId(id);
+    game.deleteBusiness(id);
+    setDeleteId(null);
+    toast.success(t('biz.delete'));
   };
 
-  // Main view
-  if (view === 'main') {
-    return (
-      <div className="max-w-2xl space-y-6">
+  const nav: Array<[Section, string, string]> = [
+    ['portfolio', t('biz.my_businesses'), 'briefcase'],
+    ['launch', t('biz.open'), 'build'],
+    ['mergers', t('biz.merge'), 'merge'],
+  ];
+
+  return <div className="max-w-5xl space-y-5 pb-8">
+    <header className="relative overflow-hidden rounded-3xl border border-sky-500/20 bg-card p-5 sm:p-7">
+      <div className="absolute -right-20 -top-24 h-64 w-64 rounded-full bg-sky-500/10 blur-3xl" />
+      <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h2 className="text-2xl font-bold mb-1 flex items-center gap-2"><GameIcon name="business" size={24} themed /> {t('biz.title')}</h2>
-          <p className="text-muted-foreground text-sm">{t('biz.subtitle')}</p>
+          <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-500/15"><GameIcon name="business" size={26} themed /></div>
+          <h2 className="text-2xl font-bold sm:text-3xl">{t('biz.title')}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">{t('biz.subtitle')}</p>
         </div>
-
-        {/* Income & Tax summary card */}
-        <div className="stat-card rounded-2xl p-6 space-y-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground">{t('biz.total_income')}</p>
-              <p className="text-3xl font-bold font-mono-game text-foreground">${formatMoney(hourlyIncomeBusiness)}<span className="text-sm font-normal text-muted-foreground ml-1">{t('earning.per_hour')}</span></p>
-            </div>
-            <GameIcon name="briefcase" size={48} themed />
-          </div>
-          <div className="border-t border-border/50 pt-3">
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">
-                {t('biz.taxes_due')} <span className="text-xs">{t('biz.tax_note')}</span>
-              </p>
-              <p className={`font-mono-game font-semibold text-sm ${totalTaxDue > 0 ? 'text-destructive' : 'text-foreground'}`}>
-                ${formatMoney(totalTaxDue)}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Action buttons */}
-        <div className="grid grid-cols-3 gap-3">
-          <button
-            onClick={() => setView('open')}
-            className="rounded-xl p-4 bg-card border border-sky-300 hover:border-sky-400 hover:shadow-md transition-all text-center"
-          >
-            <span className="block mb-1"><GameIcon name="build" size={28} themed /></span>
-            <p className="text-sm font-semibold text-foreground">{t('biz.open')}</p>
-          </button>
-          <button
-            onClick={() => setView('merge')}
-            className="rounded-xl p-4 bg-card border border-purple-300 hover:border-purple-400 hover:shadow-md transition-all text-center"
-          >
-            <span className="block mb-1"><GameIcon name="merge" size={28} themed /></span>
-            <p className="text-sm font-semibold text-foreground">{t('biz.merge')}</p>
-          </button>
-          <button
-            onClick={() => totalTaxDue > 0 && payTaxes()}
-            className={`rounded-xl p-4 border text-center transition-all ${
-              totalTaxDue > 0 && balance >= totalTaxDue
-                ? 'bg-card border-destructive/50 hover:border-destructive hover:shadow-md cursor-pointer'
-                : 'bg-card border-border opacity-60 cursor-not-allowed'
-            }`}
-          >
-            <span className="block mb-1"><GameIcon name="taxes" size={28} /></span>
-            <p className="text-sm font-semibold text-foreground">{t('biz.pay_taxes')}</p>
-          </button>
-        </div>
-
-        {/* Business list */}
-        <div>
-          <h3 className="text-lg font-semibold text-foreground mb-3">{t('biz.my_businesses')} ({businesses.length})</h3>
-          {businesses.length === 0 ? (
-            <div className="stat-card rounded-2xl p-8 flex flex-col items-center justify-center min-h-[200px]">
-              <GameIcon name="building" size={48} className="text-muted-foreground mb-3" />
-              <p className="text-muted-foreground text-center">
-                {t('biz.no_businesses')}<br />{t('biz.open_first')}
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {businesses.map(biz => {
-                const isOverdue = !biz.taxPaid && Date.now() >= biz.taxDueAt;
-                const isConfirming = confirmDeleteId === biz.id;
-                const refund = biz.investmentCost * 0.45;
-                return (
-                  <div
-                    key={biz.id}
-                    className={`rounded-xl p-4 border bg-card transition-all ${
-                      isOverdue ? 'border-destructive/40 bg-destructive/5' : 'border-border'
-                    }`}
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center flex-shrink-0">
-                        <GameIcon name={biz.emoji || 'business'} size={24} themed />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-semibold text-foreground truncate">{biz.name}</h4>
-                        <p className="text-xs text-muted-foreground">{td(`d.bizcat.${biz.categoryId || ''}`, biz.categoryName)}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-mono-game text-sm font-semibold text-foreground">
-                          ${formatMoney(biz.incomePerHour)}{t('earning.per_hour')}
-                        </p>
-                        {isOverdue && (
-                          <p className="text-[10px] text-destructive font-medium">{t('biz.tax_unpaid')}</p>
-                        )}
-                      </div>
-                    </div>
-                    {/* Management actions */}
-                    <div className="mt-3 pt-3 border-t border-border/30 flex items-center justify-between">
-                      <div className="text-xs text-muted-foreground">
-                        {t('biz.refund')}: <span className="font-mono-game text-foreground">${formatMoney(refund)}</span> (45%)
-                      </div>
-                      <button
-                        onClick={() => handleDeleteBusiness(biz.id)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                          isConfirming
-                            ? 'bg-destructive text-destructive-foreground'
-                            : 'border border-destructive/30 text-destructive hover:bg-destructive/10'
-                        }`}
-                      >
-                        {isConfirming ? t('biz.delete_confirm') : t('biz.delete')}
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <Metric label={t('biz.total_income')} value={`$${formatMoney(game.hourlyIncomeBusiness)}/ч`} />
+          <Metric label={t('biz.taxes_due')} value={`$${formatMoney(game.totalTaxDue)}`} danger={game.totalTaxDue > 0} />
+          <div className="col-span-2 sm:col-span-1"><Metric label={t('biz.balance')} value={`$${formatMoney(game.balance)}`} /></div>
         </div>
       </div>
-    );
-  }
+    </header>
 
-  // Open business — category selection
-  if (view === 'open') {
-    return (
-      <div className="max-w-2xl space-y-6">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setView('main')}
-            className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center hover:bg-accent transition-colors"
-          >
-            ←
-          </button>
-          <div>
-            <h2 className="text-2xl font-bold">{t('biz.open')}</h2>
-            <p className="text-muted-foreground text-sm">{t('biz.choose_category')}</p>
-          </div>
-        </div>
+    <nav className="grid grid-cols-3 gap-2 rounded-2xl border border-border bg-card/80 p-1.5">
+      {nav.map(([id, label, icon]) => <button key={id} onClick={() => setSection(id)} className={`flex min-h-12 items-center justify-center gap-2 rounded-xl px-2 text-xs font-semibold transition-colors sm:text-sm ${section === id ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}><GameIcon name={icon} size={17} /><span className="truncate">{label}</span></button>)}
+    </nav>
 
-        <div className="space-y-3">
-          {businessCategories.map(cat => {
-            const canAfford = balance >= cat.cost;
-            return (
-              <div
-                key={cat.id}
-                onClick={() => canAfford && handleSelectCategory(cat.id)}
-                className={`rounded-xl p-4 border transition-all ${
-                  canAfford
-                    ? 'bg-card border-sky-300 hover:border-sky-400 hover:shadow-md cursor-pointer'
-                    : 'bg-card border-border opacity-60'
-                }`}
-              >
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center flex-shrink-0">
-                    <GameIcon name={cat.id} size={24} themed />
-                  </div>
-                  <div className="flex-1">
-                    <h4 className="font-semibold text-foreground">{td(`d.bizcat.${cat.id}`, cat.name)}</h4>
-                    <p className="text-xs text-muted-foreground">{t('biz.income')}: ${formatMoney(cat.baseIncomePerHour)}{t('earning.per_hour')}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-mono-game text-sm font-semibold text-foreground">${formatMoney(cat.cost)}</p>
-                    {!canAfford && (
-                      <p className="text-[10px] text-destructive">{t('biz.insufficient')}</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        <div className="stat-card rounded-xl p-3 flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">{t('biz.your_balance')}:</span>
-          <span className="font-mono-game font-semibold text-foreground">${formatMoney(balance)}</span>
-        </div>
+    {section === 'portfolio' && <section className="space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <div><h3 className="text-xl font-bold">{t('biz.my_businesses')}</h3><p className="text-sm text-muted-foreground">{game.businesses.length} · ${formatMoney(game.hourlyIncomeBusiness)}{t('earning.per_hour')}</p></div>
+        <button onClick={() => game.payTaxes()} disabled={game.totalTaxDue <= 0 || game.balance < game.totalTaxDue} className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-sm font-semibold text-amber-500 hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-40">{t('biz.pay_taxes')}</button>
       </div>
-    );
-  }
+      {game.businesses.length === 0 ? <div className="flex min-h-72 flex-col items-center justify-center rounded-3xl border border-dashed border-border bg-card/50 p-8 text-center">
+        <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-muted"><GameIcon name="building" size={32} themed /></div>
+        <h4 className="font-bold">{t('biz.no_businesses')}</h4><p className="mt-1 text-sm text-muted-foreground">{t('biz.open_first')}</p>
+        <button onClick={() => setSection('launch')} className="mt-5 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground">{t('biz.open')}</button>
+      </div> : <div className="grid gap-3 md:grid-cols-2">{game.businesses.map(business => {
+        const overdue = !business.taxPaid && Date.now() >= business.taxDueAt;
+        const confirming = deleteId === business.id;
+        return <article key={business.id} className={`rounded-2xl border bg-card p-5 ${overdue ? 'border-destructive/40' : 'border-border'}`}>
+          <div className="flex items-start gap-3"><div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-sky-500/10"><GameIcon name={business.categoryId || 'business'} size={24} themed /></div><div className="min-w-0 flex-1"><h4 className="truncate font-bold">{business.name}</h4><p className="text-xs text-muted-foreground">{td(`d.bizcat.${business.categoryId}`, business.categoryName)}</p></div>{overdue && <span className="rounded-full bg-destructive/10 px-2 py-1 text-[10px] font-bold text-destructive">{t('biz.tax_unpaid')}</span>}</div>
+          <div className="mt-4 grid grid-cols-2 gap-2"><Mini label={t('biz.income')} value={`$${formatMoney(business.incomePerHour)}/ч`} /><Mini label={t('biz.cost')} value={`$${formatMoney(business.investmentCost)}`} /></div>
+          <div className="mt-4 flex items-center justify-between border-t border-border/60 pt-3"><span className="text-xs text-muted-foreground">{t('biz.refund')}: <b className="text-foreground">${formatMoney(business.investmentCost * .45)}</b></span><button onClick={() => sell(business.id)} onBlur={() => setDeleteId(current => current === business.id ? null : current)} className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${confirming ? 'bg-destructive text-destructive-foreground' : 'text-destructive hover:bg-destructive/10'}`}>{confirming ? t('biz.delete_confirm') : t('biz.delete')}</button></div>
+        </article>;
+      })}</div>}
+    </section>}
 
-  // Name your business
-  if (view === 'name' && selectedCategory) {
-    const canAfford = balance >= selectedCategory.cost;
-    return (
-      <div className="max-w-xl space-y-6">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setView('open')}
-            className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center hover:bg-accent transition-colors"
-          >
-            ←
-          </button>
-          <div>
-            <h2 className="text-2xl font-bold flex items-center gap-2"><GameIcon name={selectedCategory.id} size={24} themed /> {td(`d.bizcat.${selectedCategory.id}`, selectedCategory.name)}</h2>
-            <p className="text-muted-foreground text-sm">{t('biz.name_your')}</p>
-          </div>
-        </div>
+    {section === 'launch' && category && <section className="grid gap-4 lg:grid-cols-[1.35fr_.65fr]">
+      <div className="rounded-3xl border border-border bg-card p-4 sm:p-5"><h3 className="text-xl font-bold">{t('biz.choose_category')}</h3><div className="mt-4 grid gap-2 sm:grid-cols-2">{businessCategories.map(item => {
+        const selected = item.id === categoryId;
+        const affordable = game.balance >= item.cost;
+        return <button key={item.id} onClick={() => { setCategoryId(item.id); setName(''); }} className={`flex items-center gap-3 rounded-2xl border p-3 text-left transition-colors ${selected ? 'border-sky-400 bg-sky-500/10' : 'border-border hover:bg-muted/60'}`}><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted"><GameIcon name={item.id} size={21} themed /></div><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold">{td(`d.bizcat.${item.id}`, item.name)}</p><p className="text-xs text-muted-foreground">${formatMoney(item.baseIncomePerHour)}/ч</p></div><div className="text-right"><p className="text-xs font-bold">${formatMoney(item.cost)}</p>{!affordable && <p className="text-[9px] text-destructive">{t('biz.insufficient')}</p>}</div></button>;
+      })}</div></div>
+      <aside className="h-fit rounded-3xl border border-sky-500/20 bg-card p-5 lg:sticky lg:top-4">
+        <div className="flex items-center gap-3"><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-500/10"><GameIcon name={category.id} size={25} themed /></div><div><h4 className="font-bold">{td(`d.bizcat.${category.id}`, category.name)}</h4><p className="text-xs text-muted-foreground">{t('biz.tax')}: 23% · {t('biz.every_72h')}</p></div></div>
+        <div className="my-5 space-y-2"><Mini label={t('biz.cost')} value={`$${formatMoney(category.cost)}`} /><Mini label={t('biz.income')} value={`$${formatMoney(category.baseIncomePerHour)}/ч`} /></div>
+        <label className="text-xs font-semibold text-muted-foreground">{t('biz.name_label')}</label><div className="mt-2 flex gap-2"><input value={name} onChange={event => setName(event.target.value)} maxLength={30} placeholder={t('biz.name_placeholder')} className="min-w-0 flex-1 rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-sky-400" /><button onClick={() => setName(generateBusinessName(category.id))} className="rounded-xl border border-border px-3 hover:bg-muted" aria-label="Generate name"><GameIcon name="random" size={18} /></button></div>
+        <button onClick={createBusiness} disabled={opening || !name.trim() || game.balance < category.cost} className="mt-4 w-full rounded-xl bg-primary px-4 py-3 text-sm font-bold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-40">{opening ? 'Сохраняю…' : t('biz.open_btn')}</button>
+      </aside>
+    </section>}
 
-        <div className="stat-card rounded-2xl p-6 space-y-4">
-          <div className="flex items-center gap-3 text-sm text-muted-foreground">
-            <span>{t('biz.cost')}:</span>
-            <span className="font-mono-game font-semibold text-foreground">${formatMoney(selectedCategory.cost)}</span>
-          </div>
-          <div className="flex items-center gap-3 text-sm text-muted-foreground">
-            <span>{t('biz.income')}:</span>
-            <span className="font-mono-game font-semibold text-foreground">${formatMoney(selectedCategory.baseIncomePerHour)}{t('earning.per_hour')}</span>
-          </div>
-          <div className="flex items-center gap-3 text-sm text-muted-foreground">
-            <span>{t('biz.tax')}:</span>
-            <span className="font-mono-game font-semibold text-foreground">23%</span>
-            <span className="text-xs">({t('biz.every_72h')})</span>
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          <label className="text-sm font-medium text-foreground">{t('biz.name_label')}</label>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={businessName}
-              onChange={e => setBusinessName(e.target.value)}
-              placeholder={t('biz.name_placeholder')}
-              className="flex-1 rounded-xl border border-border bg-card px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-sky-400 transition-colors"
-              maxLength={30}
-            />
-            <button
-              onClick={handleGenerateName}
-              className="rounded-xl px-4 py-2.5 bg-muted hover:bg-accent text-sm font-medium text-foreground transition-colors"
-              title="Generate name"
-            >
-              <GameIcon name="random" size={20} />
-            </button>
-          </div>
-        </div>
-
-        <button
-          onClick={handleOpenBusiness}
-          disabled={openingBusiness || !businessName.trim() || !canAfford}
-          className={`w-full rounded-xl py-3 text-sm font-semibold transition-all ${
-            !openingBusiness && businessName.trim() && canAfford
-              ? 'bg-primary text-primary-foreground hover:shadow-md'
-              : 'bg-muted text-muted-foreground cursor-not-allowed'
-          }`}
-        >
-          <span className="flex items-center gap-1"><GameIcon name="build" size={16} themed /> {openingBusiness ? 'Сохраняю в Supabase…' : t('biz.open_btn')}</span> — ${formatMoney(selectedCategory.cost)}
-        </button>
-
-        <div className="stat-card rounded-xl p-3 flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">{t('biz.balance')}:</span>
-          <span className="font-mono-game font-semibold text-foreground">${formatMoney(balance)}</span>
-        </div>
-      </div>
-    );
-  }
-
-  // Merge view
-  if (view === 'merge') {
-    const stockValue = stockHoldings.reduce((s, h) => s + (stockPrices[h.assetId]?.current ?? 0) * h.quantity, 0);
-    const cryptoValue = cryptoHoldings.reduce((s, h) => s + (cryptoPrices[h.assetId]?.current ?? 0) * h.quantity, 0);
-    const reValue = shopItems.filter(i => i.purchased && i.category === 'realestate').reduce((s, i) => s + i.price, 0);
-    const islandCount = shopItems.filter(i => i.purchased && i.category === 'islands').length;
-
-    return (
-      <div className="max-w-2xl space-y-6">
-        <div className="flex items-center gap-3">
-          <button onClick={() => setView('main')} className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center hover:bg-accent transition-colors">←</button>
-          <div>
-            <h2 className="text-2xl font-bold">{t('biz.merge')}</h2>
-            <p className="text-muted-foreground text-sm">{t('biz.merge_desc') || 'Объедините бизнесы для создания корпораций'}</p>
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          {businessMergers.map(merger => {
-            const catsMet = merger.requiredCategories.every(catId =>
-              businesses.some(b => b.categoryId === catId)
-            );
-            const stockMet = !merger.minStockPortfolio || stockValue >= merger.minStockPortfolio;
-            const cryptoMet = !merger.minCryptoPortfolio || cryptoValue >= merger.minCryptoPortfolio;
-            const reMet = !merger.minRealEstateValue || reValue >= merger.minRealEstateValue;
-            const islandMet = !merger.minIslandCount || islandCount >= merger.minIslandCount;
-            const canMerge = catsMet && stockMet && cryptoMet && reMet && islandMet;
-
-            return (
-              <div key={merger.id} className={`rounded-xl border p-5 transition-all ${canMerge ? 'bg-card border-purple-300 hover:shadow-md' : 'bg-card border-border opacity-70'}`}>
-                <div className="flex items-center gap-3 mb-3">
-                  <span className="text-3xl">{merger.emoji}</span>
-                  <div>
-                    <h4 className="font-bold text-foreground text-lg">{td(`d.merger.${merger.id}`, merger.name)}</h4>
-                    <p className="text-xs text-muted-foreground font-mono-game">${formatMoney(merger.resultIncomePerHour)}/час</p>
-                  </div>
-                </div>
-
-                <div className="space-y-1.5 mb-4">
-                  {merger.requiredCategories.map(catId => {
-                    const cat = businessCategories.find(c => c.id === catId);
-                    const has = businesses.some(b => b.categoryId === catId);
-                    return (
-                      <div key={catId} className="flex items-center gap-2 text-sm">
-                        <span className={has ? 'text-green-500' : 'text-destructive'}>{has ? '✓' : '✗'}</span>
-                        <span className={has ? 'text-foreground' : 'text-muted-foreground'}>{td(`d.bizcat.${catId}`, cat?.name || catId)}</span>
-                      </div>
-                    );
-                  })}
-                  {merger.minStockPortfolio && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className={stockMet ? 'text-green-500' : 'text-destructive'}>{stockMet ? '✓' : '✗'}</span>
-                      <span className={stockMet ? 'text-foreground' : 'text-muted-foreground'}>Портфель акций ≥ ${formatMoney(merger.minStockPortfolio)}</span>
-                    </div>
-                  )}
-                  {merger.minCryptoPortfolio && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className={cryptoMet ? 'text-green-500' : 'text-destructive'}>{cryptoMet ? '✓' : '✗'}</span>
-                      <span className={cryptoMet ? 'text-foreground' : 'text-muted-foreground'}>Крипто-портфель ≥ ${formatMoney(merger.minCryptoPortfolio)}</span>
-                    </div>
-                  )}
-                  {merger.minRealEstateValue && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className={reMet ? 'text-green-500' : 'text-destructive'}>{reMet ? '✓' : '✗'}</span>
-                      <span className={reMet ? 'text-foreground' : 'text-muted-foreground'}>Недвижимость ≥ ${formatMoney(merger.minRealEstateValue)}</span>
-                    </div>
-                  )}
-                  {merger.minIslandCount && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className={islandMet ? 'text-green-500' : 'text-destructive'}>{islandMet ? '✓' : '✗'}</span>
-                      <span className={islandMet ? 'text-foreground' : 'text-muted-foreground'}>Островов: {islandCount}/{merger.minIslandCount}</span>
-                    </div>
-                  )}
-                </div>
-
-                <button
-                  onClick={() => { if (canMerge) { mergeBusiness(merger.id); setView('main'); } }}
-                  disabled={!canMerge}
-                  className={`w-full rounded-xl py-2.5 text-sm font-semibold transition-all ${
-                    canMerge ? 'bg-primary text-primary-foreground hover:opacity-90' : 'bg-muted text-muted-foreground cursor-not-allowed'
-                  }`}
-                >
-                  {canMerge ? t('biz.merge_create') || 'Создать' : t('biz.merge_locked') || 'Требования не выполнены'}
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  }
-
-  return null;
+    {section === 'mergers' && <section className="space-y-4"><div><h3 className="text-xl font-bold">{t('biz.merge')}</h3><p className="text-sm text-muted-foreground">Объединяйте компании и создавайте корпорации с повышенным доходом.</p></div><div className="grid gap-3 md:grid-cols-2">{businessMergers.map(merger => {
+      const checks = [
+        ...merger.requiredCategories.map(id => ({ id, met: game.businesses.some(business => business.categoryId === id) })),
+        ...(merger.minStockPortfolio ? [{ id: `Акции ≥ $${formatMoney(merger.minStockPortfolio)}`, met: assets.stocks >= merger.minStockPortfolio }] : []),
+        ...(merger.minCryptoPortfolio ? [{ id: `Криптовалюта ≥ $${formatMoney(merger.minCryptoPortfolio)}`, met: assets.crypto >= merger.minCryptoPortfolio }] : []),
+        ...(merger.minRealEstateValue ? [{ id: `Недвижимость ≥ $${formatMoney(merger.minRealEstateValue)}`, met: assets.realEstate >= merger.minRealEstateValue }] : []),
+        ...(merger.minIslandCount ? [{ id: `Острова ${assets.islands}/${merger.minIslandCount}`, met: assets.islands >= merger.minIslandCount }] : []),
+      ];
+      const available = checks.every(check => check.met);
+      return <article key={merger.id} className={`rounded-2xl border bg-card p-5 ${available ? 'border-purple-400/50' : 'border-border'}`}><div className="flex items-start justify-between gap-3"><div><p className="text-3xl">{merger.emoji}</p><h4 className="mt-2 text-lg font-bold">{td(`d.merger.${merger.id}`, merger.name)}</h4></div><span className="rounded-full bg-purple-500/10 px-3 py-1 text-xs font-bold text-purple-400">${formatMoney(merger.resultIncomePerHour)}/ч</span></div><div className="my-4 space-y-2">{checks.map(check => { const cat = businessCategories.find(item => item.id === check.id); return <div key={check.id} className="flex items-center gap-2 text-xs"><span className={check.met ? 'text-emerald-500' : 'text-destructive'}>{check.met ? '✓' : '✕'}</span><span className={check.met ? 'text-foreground' : 'text-muted-foreground'}>{cat ? td(`d.bizcat.${cat.id}`, cat.name) : check.id}</span></div>; })}</div><button disabled={!available} onClick={() => { if (game.mergeBusiness(merger.id)) { toast.success(t('biz.merge')); setSection('portfolio'); } }} className="w-full rounded-xl bg-purple-500 px-4 py-2.5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground">{available ? 'Создать корпорацию' : t('biz.merge_locked')}</button></article>;
+    })}</div></section>}
+  </div>;
 };
+
+const Metric = ({ label, value, danger = false }: { label: string; value: string; danger?: boolean }) => <div className="min-w-32 rounded-2xl border border-border/70 bg-background/50 px-4 py-3"><p className="text-[11px] text-muted-foreground">{label}</p><p className={`mt-1 whitespace-nowrap font-mono-game text-sm font-bold ${danger ? 'text-destructive' : 'text-foreground'}`}>{value}</p></div>;
+const Mini = ({ label, value }: { label: string; value: string }) => <div className="flex items-center justify-between rounded-xl bg-muted/50 px-3 py-2.5 text-xs"><span className="text-muted-foreground">{label}</span><strong className="font-mono-game">{value}</strong></div>;
 
 export default BusinessTab;
