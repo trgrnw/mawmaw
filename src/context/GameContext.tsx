@@ -28,7 +28,7 @@ import {
   calculateTradeProfit,
   calculateWeightedAveragePrice,
 } from '@/game/investments';
-import { savedStateTimestamp, serializeState } from '@/game/save';
+import { isSaveKeyReady, savedStateTimestamp, serializeState } from '@/game/save';
 import { calculateFinancialSnapshot } from '@/game/finance';
 import { withTimeout } from '@/lib/async';
 import { formatMoney } from '@/game/format';
@@ -70,6 +70,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const { forceSave, claimPending } = useCloudSave(user?.id);
   const [loaded, setLoaded] = useState(false);
   const cloudLoadOkRef = useRef(false);
+  const loadGenerationRef = useRef(0);
+  const readySaveKeyRef = useRef<string | null>(null);
+  const saveKey = user?.id ? `gameState_${user.id}` : 'gameState_guest';
 
   const [balance, setBalance] = useState(0);
   const [clickPower, setClickPower] = useState(1);
@@ -120,6 +123,12 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // ── Load from local storage or cloud ──
   useEffect(() => {
+    const generation = ++loadGenerationRef.current;
+    // Invalidate saving synchronously for this effect run. The autosave effect
+    // from the same render may still have `loaded === true` from the previous
+    // identity, so the key guard below is the authoritative readiness check.
+    readySaveKeyRef.current = null;
+
     const loadState = async () => {
       setLoaded(false);
       // If user changed (logout or switch), reset first
@@ -130,7 +139,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       let cloudSaved: Record<string, unknown> | null = null;
       let cloudExistedOrEmpty = false;
-      const localKey = user?.id ? `gameState_${user.id}` : 'gameState_guest';
+      const localKey = saveKey;
       let localSaved: Record<string, unknown> | null = null;
       const local = localStorage.getItem(localKey);
       if (local) {
@@ -140,8 +149,10 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Local storage is authoritative on a device. Never let an older or
       // delayed cloud response overwrite purchases already saved here.
       if (localSaved) {
+        if (generation !== loadGenerationRef.current) return;
         applyLoadedState(localSaved);
         cloudLoadOkRef.current = true;
+        readySaveKeyRef.current = localKey;
         setLoaded(true);
         return;
       }
@@ -151,6 +162,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (localSaved) applyLoadedState(localSaved);
         else resetToDefaults();
         cloudLoadOkRef.current = true;
+        readySaveKeyRef.current = localKey;
         setLoaded(true);
         return;
       }
@@ -177,6 +189,10 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error('[GameContext] cloud load failed; using local save', e);
       }
 
+      // A response for a previous guest/account must never touch the current
+      // player's in-memory state or enable saving under another key.
+      if (generation !== loadGenerationRef.current) return;
+
       // Cloud is only a bootstrap source on a device without a local save.
       if (cloudSaved) {
         applyLoadedState(cloudSaved);
@@ -185,14 +201,17 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // CRITICAL: only enable autosave if we successfully reached the cloud OR have local backup.
       // Otherwise we'd autosave default zeros and wipe the real cloud save.
       cloudLoadOkRef.current = cloudExistedOrEmpty || !!cloudSaved;
+      readySaveKeyRef.current = localKey;
       setLoaded(true);
     };
     loadState().catch(error => {
+      if (generation !== loadGenerationRef.current) return;
       console.error('[GameContext] unexpected load failure; continuing with local state', error);
       cloudLoadOkRef.current = false;
+      readySaveKeyRef.current = saveKey;
       setLoaded(true);
     });
-  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user?.id, saveKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function applyLoadedState(saved: Record<string, unknown>) {
     if (typeof saved.balance === 'number') setBalance(saved.balance);
@@ -267,6 +286,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const persistImmediate = useCallback((overrides: Partial<typeof latestState.current>) => {
+    if (!isSaveKeyReady(readySaveKeyRef.current, saveKey)) return false;
     const s = { ...latestState.current, ...overrides };
     const state = serializeState({
       balance: s.balance, clickPower: s.clickPower, playerXp: s.playerXp,
@@ -278,11 +298,13 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       businesses: s.businesses, stockHoldings: s.stockHoldings, cryptoHoldings: s.cryptoHoldings,
       licensePlates: s.licensePlates, stockPrices: s.stockPrices, cryptoPrices: s.cryptoPrices,
     });
-    localStorage.setItem(user?.id ? `gameState_${user.id}` : 'gameState_guest', JSON.stringify(state));
+    localStorage.setItem(saveKey, JSON.stringify(state));
     latestState.current = s;
-  }, [user?.id]);
+    return true;
+  }, [saveKey]);
 
   const performSave = useCallback(() => {
+    if (!isSaveKeyReady(readySaveKeyRef.current, saveKey)) return;
     const s = latestState.current;
 
     const state = serializeState({
@@ -296,7 +318,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       licensePlates: s.licensePlates, stockPrices: s.stockPrices, cryptoPrices: s.cryptoPrices,
     });
 
-    localStorage.setItem(user?.id ? `gameState_${user.id}` : 'gameState_guest', JSON.stringify(state));
+    localStorage.setItem(saveKey, JSON.stringify(state));
     const nw = calculateFinancialSnapshot(s).netWorth;
 
     // Local persistence must never depend on Supabase availability. Cloud
@@ -304,7 +326,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (user?.id && cloudLoadOkRef.current) {
       forceSave(state, nw).catch(error => console.error('[GameContext] cloud save failed', error));
     }
-  }, [user?.id, forceSave]);
+  }, [user?.id, saveKey, forceSave]);
 
   // Save shortly after every meaningful state change. Local storage is
   // synchronous; cloud writes are serialized by useCloudSave.
