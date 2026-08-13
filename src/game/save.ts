@@ -25,10 +25,13 @@ export interface SerializableGameState {
   stockHoldings: StockHolding[];
   cryptoHoldings: CryptoHolding[];
   licensePlates: LicensePlateState[];
+  stockPrices: Record<string, { current: number; history: number[] }>;
+  cryptoPrices: Record<string, { current: number; history: number[] }>;
 }
 
 export function serializeState(state: SerializableGameState): Record<string, unknown> {
   return {
+    savedAt: Date.now(),
     balance: state.balance,
     clickPower: state.clickPower,
     playerXp: state.playerXp,
@@ -53,5 +56,13 @@ export function serializeState(state: SerializableGameState): Record<string, unk
     stockHoldings: state.stockHoldings,
     cryptoHoldings: state.cryptoHoldings,
     licensePlates: state.licensePlates,
+    stockPrices: state.stockPrices,
+    cryptoPrices: state.cryptoPrices,
   };
+}
+
+export function savedStateTimestamp(state: Record<string, unknown> | null): number {
+  if (!state) return 0;
+  const value = Number(state.savedAt);
+  return Number.isFinite(value) && value > 0 ? value : 0;
 }
