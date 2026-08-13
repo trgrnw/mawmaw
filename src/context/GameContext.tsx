@@ -28,7 +28,8 @@ import {
   calculateTradeProfit,
   calculateWeightedAveragePrice,
 } from '@/game/investments';
-import { serializeState } from '@/game/save';
+import { savedStateTimestamp, serializeState } from '@/game/save';
+import { calculateFinancialSnapshot } from '@/game/finance';
 import { formatMoney } from '@/game/format';
 import {
   progressionFromXp,
@@ -65,7 +66,7 @@ export const useGame = () => {
 
 export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
-  const { saveToCloud, loadFromCloud, forceSave } = useCloudSave(user?.id);
+  const { forceSave, claimPending } = useCloudSave(user?.id);
   const [loaded, setLoaded] = useState(false);
   const cloudLoadOkRef = useRef(false);
 
@@ -119,19 +120,27 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // ── Load from local storage or cloud ──
   useEffect(() => {
     const loadState = async () => {
+      setLoaded(false);
       // If user changed (logout or switch), reset first
       if (prevUserId.current !== undefined && prevUserId.current !== (user?.id ?? null)) {
         resetToDefaults();
       }
       prevUserId.current = user?.id ?? null;
 
-      let saved: Record<string, unknown> | null = null;
+      let cloudSaved: Record<string, unknown> | null = null;
       let cloudExistedOrEmpty = false;
+      const localKey = user?.id ? `gameState_${user.id}` : 'gameState_guest';
+      let localSaved: Record<string, unknown> | null = null;
+      const local = localStorage.getItem(localKey);
+      if (local) {
+        try { localSaved = JSON.parse(local); } catch { /* ignore corrupt local data */ }
+      }
 
-      // No user = fresh state, no localStorage fallback
+      // Guests use a durable local save.
       if (!user?.id) {
-        resetToDefaults();
-        cloudLoadOkRef.current = false;
+        if (localSaved) applyLoadedState(localSaved);
+        else resetToDefaults();
+        cloudLoadOkRef.current = true;
         setLoaded(true);
         return;
       }
@@ -141,20 +150,15 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         try {
           const { data, error } = await supabase
             .from('game_saves')
-            .select('game_state, pending_balance')
+            .select('game_state, updated_at')
             .eq('user_id', user.id)
             .maybeSingle();
           if (error) throw error;
           cloudExistedOrEmpty = true; // query succeeded
           if (data) {
             const state = (data.game_state as Record<string, unknown>) || {};
-            const pending = Number((data as any).pending_balance) || 0;
-            if (pending !== 0) {
-              state.balance = (Number(state.balance) || 0) + pending;
-              await supabase.from('game_saves').update({ pending_balance: 0 } as any)
-                .eq('user_id', user.id).eq('pending_balance', pending);
-            }
-            saved = state;
+            if (!savedStateTimestamp(state) && data.updated_at) state.savedAt = new Date(data.updated_at).getTime();
+            cloudSaved = state;
           }
           break;
         } catch (e) {
@@ -166,14 +170,11 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
 
-      // Fallback to user-scoped localStorage
-      if (!saved) {
-        const local = localStorage.getItem(`gameState_${user.id}`);
-        if (local) {
-          try { saved = JSON.parse(local); } catch { /* ignore */ }
-        }
-      }
-
+      // Prefer the newest valid copy. A synchronous local save is often newer
+      // than the last cloud request when the page was refreshed quickly.
+      const saved = savedStateTimestamp(localSaved) > savedStateTimestamp(cloudSaved)
+        ? localSaved
+        : (cloudSaved || localSaved);
       if (saved) {
         applyLoadedState(saved);
       }
@@ -239,6 +240,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (Array.isArray(saved.licensePlates)) {
       setLicensePlates(saved.licensePlates as LicensePlateState[]);
     }
+    if (saved.stockPrices && typeof saved.stockPrices === 'object') setStockPrices(saved.stockPrices as PriceData);
+    if (saved.cryptoPrices && typeof saved.cryptoPrices === 'object') setCryptoPrices(saved.cryptoPrices as PriceData);
   }
 
   // ── Refs for latest state (used by interval-based save) ──
@@ -257,7 +260,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const performSave = useCallback(() => {
     const s = latestState.current;
-    if (!user?.id) return;
 
     const state = serializeState({
       balance: s.balance, clickPower: s.clickPower, playerXp: s.playerXp,
@@ -267,34 +269,25 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       totalEarnedGems: s.totalEarnedGems,
       upgrades: s.upgrades, shopItems: s.shopItems, accessoryItems: s.accessoryItems,
       businesses: s.businesses, stockHoldings: s.stockHoldings, cryptoHoldings: s.cryptoHoldings,
-      licensePlates: s.licensePlates,
+      licensePlates: s.licensePlates, stockPrices: s.stockPrices, cryptoPrices: s.cryptoPrices,
     });
 
-    // Save to user-scoped localStorage
-    localStorage.setItem(`gameState_${user.id}`, JSON.stringify(state));
+    localStorage.setItem(user?.id ? `gameState_${user.id}` : 'gameState_guest', JSON.stringify(state));
+    const nw = calculateFinancialSnapshot(s).netWorth;
 
-    // Net worth = same as profile (assets only, NO balance)
-    const shopT = s.shopItems.filter(i => i.purchased).reduce((sum, i) => sum + i.price, 0);
-    const accT = s.accessoryItems.filter(i => i.purchased).reduce((sum, i) => sum + i.price, 0);
-    const bizT = s.businesses.reduce((sum, b) => sum + b.investmentCost, 0);
-    const stkV = s.stockHoldings.reduce((sum, h) => sum + (s.stockPrices[h.assetId]?.current ?? 0) * h.quantity, 0);
-    const cryV = s.cryptoHoldings.reduce((sum, h) => sum + (s.cryptoPrices[h.assetId]?.current ?? 0) * h.quantity, 0);
-    const nw = shopT + accT + bizT + stkV + cryV;
-
-    // Cloud save (forceSave — no extra debounce)
-    forceSave(state, nw);
+    if (user?.id) forceSave(state, nw).catch(error => console.error('[GameContext] cloud save failed', error));
   }, [user?.id, forceSave]);
 
-  // ── Interval-based auto-save every 3 seconds ──
+  // Save shortly after every meaningful state change. Local storage is
+  // synchronous; cloud writes are serialized by useCloudSave.
   useEffect(() => {
-    if (!loaded || !user?.id) return;
-    const interval = setInterval(() => {
-      // Safety: never save if cloud was never reached (would wipe data with defaults)
-      if (!cloudLoadOkRef.current) return;
-      performSave();
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [loaded, user?.id, performSave]);
+    if (!loaded || !cloudLoadOkRef.current) return;
+    const timeout = setTimeout(performSave, 250);
+    return () => clearTimeout(timeout);
+  }, [loaded, performSave, balance, clickPower, playerXp, totalEarnedClick,
+    totalEarnedBusiness, totalEarnedRent, totalEarnedDividends, totalEarnedTrading,
+    totalEarnedCrypto, totalEarnedGems, upgrades, shopItems, accessoryItems,
+    businesses, stockHoldings, cryptoHoldings, licensePlates, stockPrices, cryptoPrices]);
 
   // Save on beforeunload
   useEffect(() => {
@@ -391,20 +384,16 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     if (!user?.id || !loaded) return;
     const checkPending = async () => {
-      const { data } = await supabase
-        .from('game_saves')
-        .select('pending_balance')
-        .eq('user_id', user.id)
-        .single();
-      const pending = Number((data as any)?.pending_balance) || 0;
+      const pending = await claimPending();
       if (pending !== 0) {
         setBalance(b => Math.max(0, b + pending));
-        await supabase.from('game_saves').update({ pending_balance: 0 } as any).eq('user_id', user.id);
+        if (pending > 0) setTotalEarnedGems(current => current + pending);
       }
     };
+    checkPending();
     const interval = setInterval(checkPending, 5000);
     return () => clearInterval(interval);
-  }, [user?.id, loaded]);
+  }, [user?.id, loaded, claimPending]);
 
   // --- Offline income claim once on load + heartbeat presence ---
   const offlineClaimedRef = useRef(false);
@@ -463,6 +452,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (nextLevel > previousLevel) {
       const reward = rewardsBetweenLevels(previousLevel, nextLevel);
       setBalance(current => current + reward);
+      setTotalEarnedGems(current => current + reward);
       window.dispatchEvent(new CustomEvent('player-level-up', {
         detail: { level: nextLevel, reward },
       }));
@@ -697,14 +687,26 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return true;
   }, [balance]);
 
-  const addBalance = useCallback((amount: number) => {
+  const addBalance = useCallback((amount: number, earnedAmount = 0) => {
     if (amount <= 0) return;
     setBalance(b => b + amount);
+    if (earnedAmount > 0) setTotalEarnedGems(current => current + earnedAmount);
+  }, []);
+
+  const replaceBalance = useCallback((amount: number) => {
+    if (!Number.isFinite(amount)) return;
+    setBalance(Math.max(0, amount));
   }, []);
 
   // License plate functions
   const addLicensePlate = useCallback((plate: LicensePlateState) => {
-    setLicensePlates(prev => [...prev, plate]);
+    setLicensePlates(prev => {
+      const existing = prev.find(item => item.id === plate.id);
+      if (existing && existing.text === plate.text && existing.country === plate.country && existing.isCustom === plate.isCustom) return prev;
+      return existing
+        ? prev.map(item => item.id === plate.id ? { ...plate, assignedTo: item.assignedTo } : item)
+        : [...prev, plate];
+    });
   }, []);
 
   const assignPlate = useCallback((plateId: string, carId: string | null) => {
@@ -720,14 +722,10 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLicensePlates(prev => prev.filter(p => p.id !== plateId));
   }, []);
 
-  // Net worth
-  const shopTotal = shopItems.filter(i => i.purchased).reduce((s, i) => s + i.price, 0);
-  const accessoryTotal = accessoryItems.filter(i => i.purchased).reduce((s, i) => s + i.price, 0);
-  const businessTotal = businesses.reduce((s, b) => s + b.investmentCost, 0);
-  const stockPortfolioValue = stockHoldings.reduce((s, h) => s + (stockPrices[h.assetId]?.current ?? 0) * h.quantity, 0);
-  const cryptoPortfolioValue = cryptoHoldings.reduce((s, h) => s + (cryptoPrices[h.assetId]?.current ?? 0) * h.quantity, 0);
-  const netWorth = shopTotal + accessoryTotal + businessTotal + stockPortfolioValue + cryptoPortfolioValue;
+  const netWorth = calculateFinancialSnapshot({ balance, shopItems, accessoryItems, businesses, stockHoldings, cryptoHoldings, stockPrices, cryptoPrices }).netWorth;
   const progression = progressionFromXp(playerXp);
+
+  if (!loaded) return <div className="min-h-screen flex items-center justify-center bg-background"><span className="text-4xl animate-pulse">🎮</span></div>;
 
   return (
     <GameContext.Provider value={{
@@ -739,7 +737,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       upgrades, shopItems, accessoryItems, businesses, passiveIncome, netWorth, totalTaxDue,
       stockHoldings, cryptoHoldings, stockPrices, cryptoPrices, licensePlates,
       click, buyUpgrade, buyShopItem, buyAccessory, openBusiness, mergeBusiness, deleteBusiness, payTaxes,
-      buyStock, sellStock, buyCrypto, sellCrypto, spendBalance, addBalance, addExperience,
+      buyStock, sellStock, buyCrypto, sellCrypto, spendBalance, addBalance, replaceBalance, addExperience,
       addLicensePlate, assignPlate, removePlate, formatMoney,
     }}>
       {children}
