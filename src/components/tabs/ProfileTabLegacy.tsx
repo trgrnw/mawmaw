@@ -40,7 +40,8 @@ interface SearchResult {
   avg_rating: number | null;
 }
 
-const ProfileTabLegacy: React.FC = () => {
+const ProfileTabLegacy: React.FC<{ variant?: 'modern' | 'classic' }> = ({ variant = 'classic' }) => {
+  const modern = variant === 'modern';
   const {
     balance, netWorth, totalEarnedClick, totalEarnedBusiness, totalEarnedRent,
     totalEarnedDividends, totalEarnedTrading, totalEarnedCrypto, totalEarnedGems,
@@ -236,8 +237,8 @@ const ProfileTabLegacy: React.FC = () => {
   ];
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      <div>
+    <div className={`${modern ? 'max-w-5xl' : 'max-w-3xl mx-auto'} space-y-6`}>
+      <div className={modern ? 'rounded-3xl border border-sky-500/20 bg-card p-5 sm:p-7' : ''}>
         <h2 className="text-2xl font-bold mb-1 flex items-center gap-2">
           <GameIcon name="profile" size={24} themed /> {t('profile.title')}
         </h2>
@@ -246,8 +247,8 @@ const ProfileTabLegacy: React.FC = () => {
 
       {/* Customizable Profile Header */}
       {user && (
-        <div className="rounded-2xl overflow-hidden border bg-card relative">
-          <div className="h-32 relative" style={{ background: getBannerCss(customization.banner_url) }}>
+        <div className={`${modern ? 'rounded-3xl border-sky-500/25 shadow-lg shadow-sky-500/5' : 'rounded-2xl'} overflow-hidden border bg-card relative`}>
+          <div className={`${modern ? 'h-40' : 'h-32'} relative`} style={{ background: getBannerCss(customization.banner_url) }}>
             <button
               onClick={() => setCustomOpen(true)}
               className="absolute top-3 right-3 px-3 py-1.5 bg-black/40 hover:bg-black/60 backdrop-blur text-white rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all"
@@ -255,12 +256,12 @@ const ProfileTabLegacy: React.FC = () => {
               ✏️ {t('profile.customize')}
             </button>
             <div className="absolute -bottom-10 left-5">
-              <div className={`w-20 h-20 rounded-full bg-card border-4 border-card flex items-center justify-center text-4xl overflow-hidden ${getFrameClass(customization.frame_id)}`}>
+              <div className={`${modern ? 'w-24 h-24 rounded-3xl text-5xl' : 'w-20 h-20 rounded-full text-4xl'} bg-card border-4 border-card flex items-center justify-center overflow-hidden shadow-xl ${getFrameClass(customization.frame_id)}`}>
                 {avatarUrl ? <img src={avatarUrl} alt="avatar" className="w-full h-full object-cover" /> : avatarEmoji}
               </div>
             </div>
           </div>
-          <div className="pt-12 pb-4 px-5 space-y-2">
+          <div className={`${modern ? 'pt-14 pb-6 px-6' : 'pt-12 pb-4 px-5'} space-y-2`}>
             <div className="flex items-baseline gap-2 flex-wrap">
               <h3 className="text-lg font-bold text-foreground">{username}</h3>
               {playerId && <span className="text-xs text-muted-foreground font-mono">#{playerId.toLocaleString()}</span>}
@@ -295,7 +296,7 @@ const ProfileTabLegacy: React.FC = () => {
 
       {/* Player Search */}
       {user && (
-        <div className="bg-card rounded-2xl border p-4 space-y-3">
+        <div className={`bg-card ${modern ? 'rounded-3xl border-sky-500/15 p-5' : 'rounded-2xl p-4'} border space-y-3`}>
           <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5"><GameIcon name="search" size={16} themed /> {t('profile.search')}</h3>
           <div className="flex gap-2">
             <input
@@ -352,7 +353,7 @@ const ProfileTabLegacy: React.FC = () => {
       {/* Showcase */}
       <div>
         <h3 className="text-sm font-semibold text-foreground mb-3">{t('profile.showcase')}</h3>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className={`grid grid-cols-2 ${modern ? 'md:grid-cols-4' : 'sm:grid-cols-4'} gap-3`}>
           {SHOWCASE_CATEGORIES_KEYS.map(cat => {
             const selected = getSelectedShowcase(cat.id);
             const items = getShowcaseItems(cat.id);
@@ -364,7 +365,7 @@ const ProfileTabLegacy: React.FC = () => {
               <div key={cat.id} className="relative">
                 <button
                   onClick={() => items.length > 1 ? setOpenPicker(isOpen ? null : cat.id) : undefined}
-                  className="w-full bg-card rounded-xl border overflow-hidden text-center transition-all hover:border-primary/50"
+                  className={`w-full bg-card ${modern ? 'rounded-2xl hover:-translate-y-0.5 hover:shadow-lg' : 'rounded-xl'} border overflow-hidden text-center transition-all hover:border-primary/50`}
                 >
                   {itemData?.image ? (
                     <div className="aspect-square relative overflow-hidden">
@@ -418,7 +419,7 @@ const ProfileTabLegacy: React.FC = () => {
 
       {/* Chart */}
       {chartData.length > 0 && (
-        <div className="bg-card rounded-2xl border p-4">
+        <div className={`bg-card ${modern ? 'rounded-3xl p-5 border-sky-500/15' : 'rounded-2xl p-4'} border`}>
           <h3 className="text-sm font-semibold text-foreground mb-3">{t('profile.assets')}</h3>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={chartData}>
@@ -438,9 +439,9 @@ const ProfileTabLegacy: React.FC = () => {
       {/* Stats grid */}
       <div>
         <h3 className="text-sm font-semibold text-foreground mb-3">{t('profile.summary')}</h3>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className={`grid grid-cols-2 ${modern ? 'md:grid-cols-5' : 'sm:grid-cols-4'} gap-3`}>
           {stats.map(s => (
-            <div key={s.label} className="stat-card rounded-xl p-3 text-center">
+            <div key={s.label} className={`stat-card ${modern ? 'rounded-2xl p-4 text-left' : 'rounded-xl p-3 text-center'}`}>
               <GameIcon name={s.icon} size={24} themed />
               <p className="text-xs text-muted-foreground mt-1">{s.label}</p>
               <p className="font-mono-game text-sm font-semibold text-foreground">{s.value}</p>
@@ -452,9 +453,9 @@ const ProfileTabLegacy: React.FC = () => {
       {/* Counts */}
       <div>
         <h3 className="text-sm font-semibold text-foreground mb-3">{t('profile.counts')}</h3>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className={`grid grid-cols-2 ${modern ? 'md:grid-cols-4' : 'sm:grid-cols-4'} gap-3`}>
           {counts.map(c => (
-            <div key={c.label} className="bg-card rounded-xl border p-3 text-center">
+            <div key={c.label} className={`bg-card ${modern ? 'rounded-2xl p-4 text-left' : 'rounded-xl p-3 text-center'} border`}>
               <p className="font-mono-game text-lg font-bold text-foreground">{c.value}</p>
               <p className="text-xs text-muted-foreground">{c.label}</p>
             </div>
@@ -465,7 +466,7 @@ const ProfileTabLegacy: React.FC = () => {
       {/* Earnings breakdown */}
       <div>
         <h3 className="text-sm font-semibold text-foreground mb-3">{t('profile.earned')}</h3>
-        <div className="bg-card rounded-xl border divide-y">
+        <div className={`bg-card ${modern ? 'rounded-3xl' : 'rounded-xl'} border divide-y overflow-hidden`}>
           {earnings.map(e => (
             <div key={e.label} className="flex items-center justify-between px-4 py-3">
               <span className="text-sm text-muted-foreground">{e.label}</span>
