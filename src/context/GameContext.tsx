@@ -146,17 +146,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         try { localSaved = JSON.parse(local); } catch { /* ignore corrupt local data */ }
       }
 
-      // Local storage is authoritative on a device. Never let an older or
-      // delayed cloud response overwrite purchases already saved here.
-      if (localSaved) {
-        if (generation !== loadGenerationRef.current) return;
-        applyLoadedState(localSaved);
-        cloudLoadOkRef.current = true;
-        readySaveKeyRef.current = localKey;
-        setLoaded(true);
-        return;
-      }
-
       // Guests use a durable local save.
       if (!user?.id) {
         if (localSaved) applyLoadedState(localSaved);
@@ -193,10 +182,18 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // player's in-memory state or enable saving under another key.
       if (generation !== loadGenerationRef.current) return;
 
-      // Cloud is only a bootstrap source on a device without a local save.
+      // Supabase is authoritative for authenticated players on every device.
       if (cloudSaved) {
         applyLoadedState(cloudSaved);
         localStorage.setItem(localKey, JSON.stringify(cloudSaved));
+      } else if (cloudExistedOrEmpty && localSaved) {
+        // First login after upgrading from local-only storage: migrate once.
+        applyLoadedState(localSaved);
+      } else if (!cloudExistedOrEmpty && localSaved) {
+        // Offline fallback is a cache only; it never outranks a reachable cloud.
+        applyLoadedState(localSaved);
+      } else {
+        resetToDefaults();
       }
       // CRITICAL: only enable autosave if we successfully reached the cloud OR have local backup.
       // Otherwise we'd autosave default zeros and wipe the real cloud save.
@@ -300,8 +297,12 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
     localStorage.setItem(saveKey, JSON.stringify(state));
     latestState.current = s;
+    if (user?.id && cloudLoadOkRef.current) {
+      const nw = calculateFinancialSnapshot(s).netWorth;
+      forceSave(state, nw).catch(error => console.error('[GameContext] immediate cloud save failed', error));
+    }
     return true;
-  }, [saveKey]);
+  }, [user?.id, saveKey, forceSave]);
 
   const performSave = useCallback(() => {
     if (!isSaveKeyReady(readySaveKeyRef.current, saveKey)) return;
@@ -519,35 +520,42 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!up || up.currentLevel >= up.maxLevel) return false;
     const nextLevel = up.levels[up.currentLevel];
     if (!nextLevel || balance < nextLevel.cost) return false;
-    setBalance(b => b - nextLevel.cost);
+    const nextBalance = balance - nextLevel.cost;
+    const nextUpgrades = upgrades.map(u => u.id === id ? { ...u, currentLevel: u.currentLevel + 1 } : u);
+    persistImmediate({ balance: nextBalance, upgrades: nextUpgrades });
+    setBalance(nextBalance);
     if (id === 'click-power') {
       setClickPower(p => p + nextLevel.bonus);
     }
-    setUpgrades(prev => prev.map(u =>
-      u.id === id ? { ...u, currentLevel: u.currentLevel + 1 } : u
-    ));
+    setUpgrades(nextUpgrades);
     addExperience(15 + up.currentLevel * 5);
     return true;
-  }, [upgrades, balance, addExperience]);
+  }, [upgrades, balance, addExperience, persistImmediate]);
 
   const buyShopItem = useCallback((id: string, customPrice?: number): boolean => {
     const item = shopItems.find(i => i.id === id);
     const price = customPrice ?? item?.price ?? 0;
     if (!item || item.purchased || balance < price) return false;
-    setBalance(b => b - price);
-    setShopItems(prev => prev.map(i => i.id === id ? { ...i, purchased: true, price } : i));
+    const nextBalance = balance - price;
+    const nextItems = shopItems.map(i => i.id === id ? { ...i, purchased: true, price } : i);
+    persistImmediate({ balance: nextBalance, shopItems: nextItems });
+    setBalance(nextBalance);
+    setShopItems(nextItems);
     addExperience(40);
     return true;
-  }, [shopItems, balance, addExperience]);
+  }, [shopItems, balance, addExperience, persistImmediate]);
 
   const buyAccessory = useCallback((id: string): boolean => {
     const item = accessoryItems.find(i => i.id === id);
     if (!item || item.purchased || balance < item.price) return false;
-    setBalance(b => b - item.price);
-    setAccessoryItems(prev => prev.map(i => i.id === id ? { ...i, purchased: true } : i));
+    const nextBalance = balance - item.price;
+    const nextItems = accessoryItems.map(i => i.id === id ? { ...i, purchased: true } : i);
+    persistImmediate({ balance: nextBalance, accessoryItems: nextItems });
+    setBalance(nextBalance);
+    setAccessoryItems(nextItems);
     addExperience(30);
     return true;
-  }, [accessoryItems, balance, addExperience]);
+  }, [accessoryItems, balance, addExperience, persistImmediate]);
 
   const openBusiness = useCallback((categoryId: string, name: string): boolean => {
     const cat = businessCategories.find(c => c.id === categoryId);
@@ -602,47 +610,84 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return s + (b?.investmentCost ?? 0);
     }, 0);
 
-    setBusinesses(prev => {
-      const filtered = prev.filter(b => !consumedBizIds.includes(b.id));
-      const newBiz = createBusiness({
-        id: `merge-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-        name: merger.name,
-        categoryId: merger.id,
-        categoryName: merger.name,
-        emoji: merger.emoji,
-        investmentCost: totalInvestment,
-        incomePerHour: merger.resultIncomePerHour,
-      });
-      return [...filtered, newBiz];
+    const filtered = businesses.filter(b => !consumedBizIds.includes(b.id));
+    const newBiz = createBusiness({
+      id: `merge-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      name: merger.name,
+      categoryId: merger.id,
+      categoryName: merger.name,
+      emoji: merger.emoji,
+      investmentCost: totalInvestment,
+      incomePerHour: merger.resultIncomePerHour,
     });
+    const nextBusinesses = [...filtered, newBiz];
+    persistImmediate({ businesses: nextBusinesses });
+    setBusinesses(nextBusinesses);
 
     addExperience(150);
 
     return true;
-  }, [businesses, stockHoldings, cryptoHoldings, stockPrices, cryptoPrices, shopItems, addExperience]);
+  }, [businesses, stockHoldings, cryptoHoldings, stockPrices, cryptoPrices, shopItems, addExperience, persistImmediate]);
 
   const deleteBusiness = useCallback((id: string): boolean => {
     const biz = businesses.find(b => b.id === id);
     if (!biz) return false;
     const refund = calculateBusinessRefund(biz);
-    setBalance(b => b + refund);
-    setBusinesses(prev => prev.filter(b => b.id !== id));
+    const nextBalance = balance + refund;
+    const nextBusinesses = businesses.filter(b => b.id !== id);
+    persistImmediate({ balance: nextBalance, businesses: nextBusinesses });
+    setBalance(nextBalance);
+    setBusinesses(nextBusinesses);
     return true;
-  }, [businesses]);
+  }, [balance, businesses, persistImmediate]);
 
   const payTaxes = useCallback((): boolean => {
     const now = Date.now();
     const totalDue = calculateTotalTaxDue(businesses, now);
     if (totalDue <= 0 || balance < totalDue) return false;
-    setBalance(b => b - totalDue);
-    setBusinesses(prev => prev.map(b => {
+    const nextBalance = balance - totalDue;
+    const nextBusinesses = businesses.map(b => {
       if (!b.taxPaid && now >= b.taxDueAt) {
         return { ...b, taxPaid: true, taxDueAt: now + TAX_PERIOD_MS, taxAmount: 0 };
       }
       return b;
-    }));
+    });
+    persistImmediate({ balance: nextBalance, businesses: nextBusinesses });
+    setBalance(nextBalance);
+    setBusinesses(nextBusinesses);
     return true;
-  }, [businesses, balance]);
+  }, [businesses, balance, persistImmediate]);
+
+  const hasAutoclicker = upgrades.some(u => u.id === 'autoclicker' && u.currentLevel > 0);
+  const hasAutoTax = upgrades.some(u => u.id === 'auto-tax' && u.currentLevel > 0);
+
+  useEffect(() => {
+    if (!loaded || !hasAutoclicker) return;
+    const interval = window.setInterval(() => {
+      setBalance(current => current + clickPower);
+      setTotalEarnedClick(current => current + clickPower);
+    }, 1_000);
+    return () => window.clearInterval(interval);
+  }, [loaded, hasAutoclicker, clickPower]);
+
+  useEffect(() => {
+    if (!loaded || !hasAutoTax) return;
+    const interval = window.setInterval(() => {
+      const now = Date.now();
+      const due = calculateTotalTaxDue(latestState.current.businesses, now);
+      if (due <= 0 || latestState.current.balance < due) return;
+      const nextBalance = latestState.current.balance - due;
+      const nextBusinesses = latestState.current.businesses.map(b =>
+        !b.taxPaid && now >= b.taxDueAt
+          ? { ...b, taxPaid: true, taxDueAt: now + TAX_PERIOD_MS, taxAmount: 0 }
+          : b
+      );
+      persistImmediate({ balance: nextBalance, businesses: nextBusinesses });
+      setBalance(nextBalance);
+      setBusinesses(nextBusinesses);
+    }, 5_000);
+    return () => window.clearInterval(interval);
+  }, [loaded, hasAutoTax, persistImmediate]);
 
   // ── Investment functions ──
   const buyStock = useCallback((assetId: string, quantity: number): boolean => {
@@ -682,15 +727,16 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       averageBuyPrice: holding.avgBuyPrice,
       quantity,
     });
-    setBalance(b => b + revenue);
-    if (profit > 0) setTotalEarnedTrading(t => t + profit);
-    setStockHoldings(prev => {
-      const newQty = holding.quantity - quantity;
-      if (newQty <= 0) return prev.filter(h => h.assetId !== assetId);
-      return prev.map(h => h.assetId === assetId ? { ...h, quantity: newQty } : h);
-    });
+    const newQty = holding.quantity - quantity;
+    const nextHoldings = newQty <= 0 ? stockHoldings.filter(h => h.assetId !== assetId) : stockHoldings.map(h => h.assetId === assetId ? { ...h, quantity: newQty } : h);
+    const nextBalance = balance + revenue;
+    const nextEarned = profit > 0 ? totalEarnedTrading + profit : totalEarnedTrading;
+    persistImmediate({ balance: nextBalance, stockHoldings: nextHoldings, totalEarnedTrading: nextEarned });
+    setBalance(nextBalance);
+    setTotalEarnedTrading(nextEarned);
+    setStockHoldings(nextHoldings);
     return true;
-  }, [stockHoldings, stockPrices]);
+  }, [balance, stockHoldings, stockPrices, totalEarnedTrading, persistImmediate]);
 
   const buyCrypto = useCallback((assetId: string, amount: number): boolean => {
     const price = cryptoPrices[assetId]?.current;
@@ -729,15 +775,16 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       averageBuyPrice: holding.avgBuyPrice,
       quantity: amount,
     });
-    setBalance(b => b + revenue);
-    if (profit > 0) setTotalEarnedCrypto(t => t + profit);
-    setCryptoHoldings(prev => {
-      const newQty = holding.quantity - amount;
-      if (newQty <= 0) return prev.filter(h => h.assetId !== assetId);
-      return prev.map(h => h.assetId === assetId ? { ...h, quantity: newQty } : h);
-    });
+    const newQty = holding.quantity - amount;
+    const nextHoldings = newQty <= 0 ? cryptoHoldings.filter(h => h.assetId !== assetId) : cryptoHoldings.map(h => h.assetId === assetId ? { ...h, quantity: newQty } : h);
+    const nextBalance = balance + revenue;
+    const nextEarned = profit > 0 ? totalEarnedCrypto + profit : totalEarnedCrypto;
+    persistImmediate({ balance: nextBalance, cryptoHoldings: nextHoldings, totalEarnedCrypto: nextEarned });
+    setBalance(nextBalance);
+    setTotalEarnedCrypto(nextEarned);
+    setCryptoHoldings(nextHoldings);
     return true;
-  }, [cryptoHoldings, cryptoPrices]);
+  }, [balance, cryptoHoldings, cryptoPrices, totalEarnedCrypto, persistImmediate]);
 
   const spendBalance = useCallback((amount: number): boolean => {
     if (amount <= 0 || balance < amount) return false;

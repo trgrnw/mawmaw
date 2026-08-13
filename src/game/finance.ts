@@ -36,6 +36,7 @@ export function calculateFinancialSnapshot(input: FinancialSnapshotInput) {
     transport,
     infrastructure,
     islands,
-    netWorth: input.balance + shop + accessories + businesses + stocks + crypto,
+    // Net worth is invested/owned assets. Cash is shown separately as balance.
+    netWorth: shop + accessories + businesses + stocks + crypto,
   };
 }

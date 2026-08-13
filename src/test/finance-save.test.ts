@@ -3,7 +3,7 @@ import { calculateFinancialSnapshot } from '@/game/finance';
 import { savedStateTimestamp, selectStartupState, serializeState } from '@/game/save';
 
 describe('financial snapshot', () => {
-  it('includes cash and every owned asset category in net worth', () => {
+  it('excludes cash and includes every owned asset category in net worth', () => {
     const snapshot = calculateFinancialSnapshot({
       balance: 1_000,
       shopItems: [
@@ -21,15 +21,15 @@ describe('financial snapshot', () => {
 
     expect(snapshot.infrastructure).toBe(3_000);
     expect(snapshot.islands).toBe(4_000);
-    expect(snapshot.netWorth).toBe(21_050);
+    expect(snapshot.netWorth).toBe(20_050);
   });
 });
 
 describe('save freshness', () => {
-  it('never replaces a device-local purchase with a cloud snapshot', () => {
+  it('uses cloud as the authority and local as fallback cache', () => {
     const local = { savedAt: 10, businesses: [{ id: 'owned-business' }] };
     const cloud = { savedAt: 999999, businesses: [] };
-    expect(selectStartupState(local, cloud)).toBe(local);
+    expect(selectStartupState(local, cloud)).toBe(cloud);
     expect(selectStartupState(null, cloud)).toBe(cloud);
   });
 
