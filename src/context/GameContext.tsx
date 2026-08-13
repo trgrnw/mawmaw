@@ -274,6 +274,22 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     stockPrices, cryptoPrices, licensePlates,
   };
 
+  const persistImmediate = useCallback((overrides: Partial<typeof latestState.current>) => {
+    const s = { ...latestState.current, ...overrides };
+    const state = serializeState({
+      balance: s.balance, clickPower: s.clickPower, playerXp: s.playerXp,
+      totalEarnedClick: s.totalEarnedClick, totalEarnedBusiness: s.totalEarnedBusiness,
+      totalEarnedRent: s.totalEarnedRent, totalEarnedDividends: s.totalEarnedDividends,
+      totalEarnedTrading: s.totalEarnedTrading, totalEarnedCrypto: s.totalEarnedCrypto,
+      totalEarnedGems: s.totalEarnedGems,
+      upgrades: s.upgrades, shopItems: s.shopItems, accessoryItems: s.accessoryItems,
+      businesses: s.businesses, stockHoldings: s.stockHoldings, cryptoHoldings: s.cryptoHoldings,
+      licensePlates: s.licensePlates, stockPrices: s.stockPrices, cryptoPrices: s.cryptoPrices,
+    });
+    localStorage.setItem(user?.id ? `gameState_${user.id}` : 'gameState_guest', JSON.stringify(state));
+    latestState.current = s;
+  }, [user?.id]);
+
   const performSave = useCallback(() => {
     const s = latestState.current;
 
@@ -522,7 +538,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const openBusiness = useCallback((categoryId: string, name: string): boolean => {
     const cat = businessCategories.find(c => c.id === categoryId);
     if (!cat || balance < cat.cost) return false;
-    setBalance(b => b - cat.cost);
     const newBusiness = createBusiness({
       id: `biz-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       name,
@@ -532,10 +547,14 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       investmentCost: cat.cost,
       incomePerHour: cat.baseIncomePerHour,
     });
-    setBusinesses(prev => [...prev, newBusiness]);
+    const nextBalance = balance - cat.cost;
+    const nextBusinesses = [...businesses, newBusiness];
+    persistImmediate({ balance: nextBalance, businesses: nextBusinesses });
+    setBalance(nextBalance);
+    setBusinesses(nextBusinesses);
     addExperience(75);
     return true;
-  }, [balance, addExperience]);
+  }, [balance, businesses, addExperience, persistImmediate]);
 
   const mergeBusiness = useCallback((mergerId: string): boolean => {
     const merger = businessMergers.find(m => m.id === mergerId);
@@ -617,9 +636,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!price || quantity <= 0) return false;
     const cost = price * quantity;
     if (balance < cost) return false;
-    setBalance(b => b - cost);
-    setStockHoldings(prev => {
-      const existing = prev.find(h => h.assetId === assetId);
+    const existing = stockHoldings.find(h => h.assetId === assetId);
+    let nextHoldings: StockHolding[];
       if (existing) {
         const newQty = existing.quantity + quantity;
         const newAvg = calculateWeightedAveragePrice({
@@ -628,12 +646,16 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           addedQuantity: quantity,
           addedCost: cost,
         });
-        return prev.map(h => h.assetId === assetId ? { ...h, quantity: newQty, avgBuyPrice: newAvg } : h);
+        nextHoldings = stockHoldings.map(h => h.assetId === assetId ? { ...h, quantity: newQty, avgBuyPrice: newAvg } : h);
+      } else {
+        nextHoldings = [...stockHoldings, { assetId, quantity, avgBuyPrice: price }];
       }
-      return [...prev, { assetId, quantity, avgBuyPrice: price }];
-    });
+    const nextBalance = balance - cost;
+    persistImmediate({ balance: nextBalance, stockHoldings: nextHoldings });
+    setBalance(nextBalance);
+    setStockHoldings(nextHoldings);
     return true;
-  }, [balance, stockPrices]);
+  }, [balance, stockPrices, stockHoldings, persistImmediate]);
 
   const sellStock = useCallback((assetId: string, quantity: number): boolean => {
     const holding = stockHoldings.find(h => h.assetId === assetId);
@@ -661,9 +683,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!price || amount <= 0) return false;
     const cost = price * amount;
     if (balance < cost) return false;
-    setBalance(b => b - cost);
-    setCryptoHoldings(prev => {
-      const existing = prev.find(h => h.assetId === assetId);
+    const existing = cryptoHoldings.find(h => h.assetId === assetId);
+    let nextHoldings: CryptoHolding[];
       if (existing) {
         const newQty = existing.quantity + amount;
         const newAvg = calculateWeightedAveragePrice({
@@ -672,12 +693,16 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           addedQuantity: amount,
           addedCost: cost,
         });
-        return prev.map(h => h.assetId === assetId ? { ...h, quantity: newQty, avgBuyPrice: newAvg } : h);
+        nextHoldings = cryptoHoldings.map(h => h.assetId === assetId ? { ...h, quantity: newQty, avgBuyPrice: newAvg } : h);
+      } else {
+        nextHoldings = [...cryptoHoldings, { assetId, quantity: amount, avgBuyPrice: price }];
       }
-      return [...prev, { assetId, quantity: amount, avgBuyPrice: price }];
-    });
+    const nextBalance = balance - cost;
+    persistImmediate({ balance: nextBalance, cryptoHoldings: nextHoldings });
+    setBalance(nextBalance);
+    setCryptoHoldings(nextHoldings);
     return true;
-  }, [balance, cryptoPrices]);
+  }, [balance, cryptoPrices, cryptoHoldings, persistImmediate]);
 
   const sellCrypto = useCallback((assetId: string, amount: number): boolean => {
     const holding = cryptoHoldings.find(h => h.assetId === assetId);
