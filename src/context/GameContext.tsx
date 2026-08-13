@@ -16,7 +16,7 @@ import type {
   Upgrade,
 } from '@/game/types';
 import { defaultAccessories, defaultShopItems } from '@/game/defaults';
-import { defaultUpgrades } from '@/game/upgrades';
+import { defaultUpgrades, upgradeLevels } from '@/game/upgrades';
 import { TAX_PERIOD_MS } from '@/game/constants';
 import {
   calculateBusinessRefund,
