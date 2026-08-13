@@ -30,6 +30,7 @@ import {
 } from '@/game/investments';
 import { savedStateTimestamp, serializeState } from '@/game/save';
 import { calculateFinancialSnapshot } from '@/game/finance';
+import { withTimeout } from '@/lib/async';
 import { formatMoney } from '@/game/format';
 import {
   progressionFromXp,
@@ -136,6 +137,13 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         try { localSaved = JSON.parse(local); } catch { /* ignore corrupt local data */ }
       }
 
+      // Never hold the whole game behind the network. Show the local snapshot
+      // immediately while checking whether the cloud has a newer copy.
+      if (localSaved) {
+        applyLoadedState(localSaved);
+        setLoaded(true);
+      }
+
       // Guests use a durable local save.
       if (!user?.id) {
         if (localSaved) applyLoadedState(localSaved);
@@ -145,14 +153,17 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
 
-      // Try cloud first — RETRY on transient failure to avoid wiping save
-      for (let attempt = 0; attempt < 3; attempt++) {
-        try {
-          const { data, error } = await supabase
+      // A stalled Supabase request must never leave the app on the loader.
+      try {
+          const { data, error } = await withTimeout(
+            supabase
             .from('game_saves')
             .select('game_state, updated_at')
             .eq('user_id', user.id)
-            .maybeSingle();
+            .maybeSingle(),
+            5_000,
+            'Cloud save load timed out',
+          );
           if (error) throw error;
           cloudExistedOrEmpty = true; // query succeeded
           if (data) {
@@ -160,14 +171,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if (!savedStateTimestamp(state) && data.updated_at) state.savedAt = new Date(data.updated_at).getTime();
             cloudSaved = state;
           }
-          break;
-        } catch (e) {
-          if (attempt === 2) {
-            console.error('[GameContext] cloud load failed after retries', e);
-          } else {
-            await new Promise(r => setTimeout(r, 800 * (attempt + 1)));
-          }
-        }
+      } catch (e) {
+        console.error('[GameContext] cloud load failed; using local save', e);
       }
 
       // Prefer the newest valid copy. A synchronous local save is often newer
@@ -183,7 +188,11 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       cloudLoadOkRef.current = cloudExistedOrEmpty || !!saved;
       setLoaded(true);
     };
-    loadState();
+    loadState().catch(error => {
+      console.error('[GameContext] unexpected load failure; continuing with local state', error);
+      cloudLoadOkRef.current = false;
+      setLoaded(true);
+    });
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function applyLoadedState(saved: Record<string, unknown>) {
