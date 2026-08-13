@@ -212,7 +212,7 @@ const RocketGame: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     if (!round || round.status !== 'flying' || myCashedOut) return;
     setLoading(true);
     const data = await callCasino('cashout_rocket', { round_id: round.id });
-    if (data?.success) { setMyCashedOut(true); addBalance(data.win_amount); }
+    if (data?.success) { setMyCashedOut(true); addBalance(data.win_amount, Math.max(0, data.win_amount - betAmount)); }
     setLoading(false);
   };
 
