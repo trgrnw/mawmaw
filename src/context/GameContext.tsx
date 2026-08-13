@@ -67,7 +67,7 @@ export const useGame = () => {
 
 export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
-  const { forceSave, claimPending } = useCloudSave(user?.id);
+  const { forceSave, forceSaveNow, claimPending } = useCloudSave(user?.id);
   const [loaded, setLoaded] = useState(false);
   const cloudLoadOkRef = useRef(false);
   const loadGenerationRef = useRef(0);
@@ -348,8 +348,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       licensePlates: s.licensePlates, stockPrices: s.stockPrices, cryptoPrices: s.cryptoPrices,
     });
     localStorage.setItem(saveKey, JSON.stringify(state));
-    await forceSave(state, calculateFinancialSnapshot(s).netWorth);
-  }, [user?.id, saveKey, forceSave]);
+    await forceSaveNow(state, calculateFinancialSnapshot(s).netWorth);
+  }, [user?.id, saveKey, forceSaveNow]);
 
   // Save shortly after every meaningful state change. Local storage is
   // synchronous; cloud writes are serialized by useCloudSave.
@@ -579,7 +579,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return true;
   }, [accessoryItems, balance, addExperience, persistImmediate]);
 
-  const openBusiness = useCallback((categoryId: string, name: string): boolean => {
+  const openBusiness = useCallback(async (categoryId: string, name: string): Promise<boolean> => {
     const cat = businessCategories.find(c => c.id === categoryId);
     if (!cat || balance < cat.cost) return false;
     const newBusiness = createBusiness({
@@ -597,8 +597,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setBalance(nextBalance);
     setBusinesses(nextBusinesses);
     addExperience(75);
+    await syncProgress();
     return true;
-  }, [balance, businesses, addExperience, persistImmediate]);
+  }, [balance, businesses, addExperience, persistImmediate, syncProgress]);
 
   const mergeBusiness = useCallback((mergerId: string): boolean => {
     const merger = businessMergers.find(m => m.id === mergerId);
