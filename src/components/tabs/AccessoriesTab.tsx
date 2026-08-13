@@ -316,23 +316,23 @@ const AccessoriesTab: React.FC = () => {
   const allCategories = [...accessoryCategories, MISC_CATEGORY];
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold mb-1 flex items-center gap-2"><GameIcon name="accessories" size={24} themed /> {t('acc.title')}</h2>
-        <p className="text-muted-foreground text-sm">{t('acc.subtitle')}</p>
+    <div className="max-w-6xl space-y-5 pb-8">
+      <div className="relative overflow-hidden rounded-3xl border border-fuchsia-500/20 bg-card p-5 sm:p-7">
+        <div className="absolute -right-16 -top-20 h-60 w-60 rounded-full bg-fuchsia-500/10 blur-3xl" />
+        <div className="relative flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between"><div><div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-fuchsia-500/15"><GameIcon name="accessories" size={26} themed /></div><h2 className="text-2xl font-bold sm:text-3xl">{t('acc.title')}</h2><p className="mt-1 text-sm text-muted-foreground">{t('acc.subtitle')}</p></div><div className="grid grid-cols-3 gap-2"><div className="rounded-2xl border bg-background/50 px-3 py-3"><p className="text-[10px] text-muted-foreground">{t('acc.balance')}</p><p className="font-mono-game text-sm font-bold">${formatMoney(balance)}</p></div><div className="rounded-2xl border bg-background/50 px-3 py-3"><p className="text-[10px] text-muted-foreground">{t('acc.purchased')}</p><p className="font-mono-game text-sm font-bold">{accessoryItems.filter(i => i.purchased).length}/{accessoryItemsData.length}</p></div><div className="rounded-2xl border bg-background/50 px-3 py-3"><p className="text-[10px] text-muted-foreground">Номера</p><p className="font-mono-game text-sm font-bold">{licensePlates.length}</p></div></div></div>
       </div>
 
       {/* Category Grid */}
       {view === 'categories' && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           {allCategories.map(cat => (
             <button
               key={cat.id}
               onClick={() => openCategory(cat.id)}
-              className="rounded-2xl overflow-hidden border border-border bg-card transition-all hover:shadow-lg hover:border-primary/50 hover:scale-[1.02] active:scale-[0.98] group"
+              className="rounded-3xl overflow-hidden border border-border bg-card transition-all hover:shadow-xl hover:border-fuchsia-400/50 hover:-translate-y-0.5 active:scale-[0.98] group"
             >
               {cat.image ? (
-                <div className="aspect-[4/3] relative overflow-hidden">
+                <div className="aspect-[16/10] relative overflow-hidden">
                   <img src={cat.image} alt={td('d.acccat.' + cat.id, cat.name)} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110" loading="lazy" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                   <div className="absolute bottom-0 left-0 right-0 p-3">
@@ -341,7 +341,7 @@ const AccessoriesTab: React.FC = () => {
                   </div>
                 </div>
               ) : (
-                <div className="aspect-[4/3] flex flex-col items-center justify-center p-4">
+                <div className="aspect-[16/10] flex flex-col items-center justify-center p-4 bg-gradient-to-br from-fuchsia-500/10 to-transparent">
                    <GameIcon name={cat.id} size={48} themed />
                    <span className="font-semibold text-foreground text-sm mt-2">{cat.id === 'misc' ? t('acc.misc') : cat.name}</span>
                    <span className="text-xs text-muted-foreground">{cat.id === 'misc' ? t('acc.misc_desc') : cat.description}</span>
@@ -359,7 +359,7 @@ const AccessoriesTab: React.FC = () => {
           <h3 className="text-lg font-semibold flex items-center gap-2"><GameIcon name="misc" size={20} /> {t('acc.misc')}</h3>
 
           {/* Usernames card */}
-          <div className="bg-card rounded-2xl border p-5 space-y-4">
+          <div className="bg-card rounded-3xl border border-fuchsia-500/15 p-5 space-y-4">
             <div className="flex items-center gap-3">
               <GameIcon name="tag" size={36} themed />
               <div>
@@ -389,7 +389,7 @@ const AccessoriesTab: React.FC = () => {
           </div>
 
           {/* License Plates card */}
-          <div className="bg-card rounded-2xl border p-5 space-y-4">
+          <div className="bg-card rounded-3xl border border-fuchsia-500/15 p-5 space-y-4">
             <div className="flex items-center gap-3">
               <GameIcon name="plate" size={36} themed />
               <div>
@@ -453,12 +453,12 @@ const AccessoriesTab: React.FC = () => {
             {catInfo?.image ? <img src={catInfo.image} alt="" className="w-8 h-8 rounded-lg object-cover" /> : <GameIcon name={catInfo?.id || 'misc'} size={20} themed />}
             {catInfo ? td('d.acccat.' + catInfo.id, catInfo.name) : ''}
           </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
             {catItems.map(item => {
               const purchased = isPurchased(item.id);
               return (
                 <button key={item.id} disabled={purchased} onClick={() => !purchased && openItemDialog(item)}
-                  className={`rounded-2xl overflow-hidden border text-left transition-all group ${purchased ? 'bg-muted/50 border-border opacity-70 cursor-default' : 'bg-card border-border hover:border-primary/50 hover:shadow-md cursor-pointer'}`}
+                  className={`rounded-3xl overflow-hidden border text-left transition-all group ${purchased ? 'bg-muted/50 border-emerald-500/20 opacity-70 cursor-default' : 'bg-card border-border hover:-translate-y-0.5 hover:border-fuchsia-400/50 hover:shadow-xl cursor-pointer'}`}
                 >
                   <div className="aspect-[4/3] relative overflow-hidden">
                     <img src={item.image} alt={item.name} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" loading="lazy" />
