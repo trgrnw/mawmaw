@@ -12,6 +12,7 @@ import ProfileCustomization, { getBannerCss, getFrameClass } from '@/components/
 import PlayerProfileDialog from '@/components/profile/PlayerProfileDialog';
 import { toast } from 'sonner';
 import { withTimeout } from '@/lib/async';
+import { calculateFinancialSnapshot } from '@/game/finance';
 
 const COLORS = ['#87CEEB', '#ADD8E6', '#B0E0E6', '#5F9EA0', '#4682B4', '#6495ED', '#7EC8E3', '#00CED1'];
 
@@ -142,13 +143,9 @@ const ProfileTab: React.FC = () => {
   const shopPurchased = shopItems.filter(i => i.purchased);
   const accPurchased = accessoryItems.filter(i => i.purchased);
 
-  const shopTotal = shopPurchased.reduce((s, i) => s + i.price, 0);
-  const accTotal = accPurchased.reduce((s, i) => s + i.price, 0);
-  const businessTotal = businesses.reduce((s, b) => s + b.investmentCost, 0);
-  const realEstate = shopPurchased.filter(i => i.category === 'realestate').reduce((s, i) => s + i.price, 0);
-  const transport = shopPurchased.filter(i => ['cars', 'ships', 'planes'].includes(i.category)).reduce((s, i) => s + i.price, 0);
-  const stockValue = stockHoldings.reduce((s, h) => s + (stockPrices[h.assetId]?.current ?? 0) * h.quantity, 0);
-  const cryptoValue = cryptoHoldings.reduce((s, h) => s + (cryptoPrices[h.assetId]?.current ?? 0) * h.quantity, 0);
+  const finances = calculateFinancialSnapshot({ balance, shopItems, accessoryItems, businesses, stockHoldings, cryptoHoldings, stockPrices, cryptoPrices });
+  const { accessories: accTotal, businesses: businessTotal, realEstate, transport,
+    infrastructure, islands, stocks: stockValue, crypto: cryptoValue } = finances;
 
   const chartData = [
     { name: t('profile.stat_balance'), value: balance },
@@ -158,6 +155,8 @@ const ProfileTab: React.FC = () => {
     { name: t('profile.stat_transport'), value: transport },
     { name: t('profile.stat_collections'), value: accTotal },
     { name: t('profile.stat_crypto'), value: cryptoValue },
+    { name: t('profile.stat_infrastructure'), value: infrastructure },
+    { name: t('profile.stat_islands'), value: islands },
   ].filter(d => d.value > 0);
 
   const getShowcaseItems = (catId: string) => {
@@ -200,7 +199,7 @@ const ProfileTab: React.FC = () => {
   const nftCount = accPurchased.filter(i => i.category === 'nft').length;
 
   const stats = [
-    { label: t('profile.stat_networth'), value: `$${formatMoney(netWorth)}`, icon: 'wallet' },
+    { label: t('profile.stat_networth'), value: `$${formatMoney(finances.netWorth)}`, icon: 'wallet' },
     { label: t('profile.stat_balance'), value: `$${formatMoney(balance)}`, icon: 'balance' },
     { label: t('profile.stat_business'), value: `$${formatMoney(businessTotal)}`, icon: 'business' },
     { label: t('profile.stat_stocks'), value: `$${formatMoney(stockValue)}`, icon: 'stocks' },
@@ -208,6 +207,8 @@ const ProfileTab: React.FC = () => {
     { label: t('profile.stat_transport'), value: `$${formatMoney(transport)}`, icon: 'car' },
     { label: t('profile.stat_collections'), value: `$${formatMoney(accTotal)}`, icon: 'diamond' },
     { label: t('profile.stat_crypto'), value: `$${formatMoney(cryptoValue)}`, icon: 'crypto' },
+    { label: t('profile.stat_infrastructure'), value: `$${formatMoney(infrastructure)}`, icon: 'building' },
+    { label: t('profile.stat_islands'), value: `$${formatMoney(islands)}`, icon: 'islands' },
   ];
 
   const counts = [
@@ -219,6 +220,9 @@ const ProfileTab: React.FC = () => {
     { label: t('profile.cnt_collectibles'), value: accPurchased.length },
     { label: t('profile.cnt_islands'), value: countByCategory('islands') },
     { label: t('profile.cnt_nft'), value: nftCount },
+    { label: t('profile.cnt_garages'), value: countByCategory('garage') },
+    { label: t('profile.cnt_hangars'), value: countByCategory('hangar') },
+    { label: t('profile.cnt_docks'), value: countByCategory('dock') },
   ];
 
   const earnings = [

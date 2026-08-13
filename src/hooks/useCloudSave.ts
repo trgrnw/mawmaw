@@ -1,20 +1,22 @@
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { Json } from '@/integrations/supabase/types';
 
 export function useCloudSave(userId: string | undefined) {
+  const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
+
   const forceSave = useCallback(async (gameState: Record<string, unknown>, netWorth: number) => {
     if (!userId) return;
-    // IMPORTANT: never overwrite pending_balance here — it accumulates server-side
-    // (market sales, offline income, wheel) and is consumed by claim_pending_balance().
-    await supabase.from('game_saves').upsert(
-      {
-        user_id: userId,
-        game_state: gameState as unknown as Json,
-        net_worth: netWorth,
-      },
-      { onConflict: 'user_id' }
-    );
+    const write = async () => {
+      const { error } = await supabase.rpc('save_game_state' as never, {
+        p_state: gameState as unknown as Json,
+        p_net_worth: netWorth,
+      } as never);
+      if (error) throw error;
+    };
+    const queued = saveQueueRef.current.catch(() => undefined).then(write);
+    saveQueueRef.current = queued;
+    return queued;
   }, [userId]);
 
   const loadFromCloud = useCallback(async (): Promise<Record<string, unknown> | null> => {

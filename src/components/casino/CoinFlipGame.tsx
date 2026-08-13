@@ -80,7 +80,7 @@ const CoinFlipGame: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             const won = myBet.result === 'won';
             setMyBetResult(won ? 'won' : 'lost');
             if (won) {
-              addBalance(myBet.bet_amount + myBet.profit);
+              addBalance(myBet.bet_amount + myBet.profit, Math.max(0, myBet.profit));
             }
           }
 

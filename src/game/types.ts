@@ -112,7 +112,8 @@ export interface GameContextType extends GameState {
   buyCrypto: (assetId: string, amount: number) => boolean;
   sellCrypto: (assetId: string, amount: number) => boolean;
   spendBalance: (amount: number) => boolean;
-  addBalance: (amount: number) => void;
+  addBalance: (amount: number, earnedAmount?: number) => void;
+  replaceBalance: (amount: number) => void;
   addExperience: (amount: number) => void;
   addLicensePlate: (plate: LicensePlateState) => void;
   assignPlate: (plateId: string, carId: string | null) => void;
