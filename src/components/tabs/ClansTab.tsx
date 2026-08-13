@@ -131,6 +131,7 @@ const ClansTab: React.FC = () => {
         net_worth: saves?.find(s => s.user_id === m.user_id)?.net_worth || 0,
       }));
       setMembers(enriched.sort((a, b) => (b.net_worth || 0) - (a.net_worth || 0)));
+      if (clanData) setMyClan({ ...clanData, member_count: enriched.length });
 
       const { data: chatData } = await supabase.from('clan_chat_messages').select('*').eq('clan_id', memberData.clan_id).order('created_at', { ascending: true }).limit(100);
       setChat(chatData || []);

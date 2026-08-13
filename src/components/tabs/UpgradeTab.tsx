@@ -25,6 +25,9 @@ const UpgradeTab: React.FC = () => {
           const nextLevel = !isMaxed ? up.levels[up.currentLevel] : null;
           const canAfford = nextLevel ? balance >= nextLevel.cost : false;
           const totalBonus = up.levels.slice(0, up.currentLevel).reduce((s, l) => s + l.bonus, 0);
+          const isClickPower = up.id === 'click-power';
+          const nameKey = `upgrade.${up.id.replace('-', '_')}_name`;
+          const descKey = `upgrade.${up.id.replace('-', '_')}_desc`;
 
           return (
             <div
@@ -40,12 +43,12 @@ const UpgradeTab: React.FC = () => {
             >
               <div className="flex items-start gap-4">
                 <div className="w-16 h-16 rounded-xl bg-muted flex items-center justify-center flex-shrink-0">
-                  <GameIcon name="click" size={32} themed />
+                  <span className="text-3xl">{up.emoji}</span>
                 </div>
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-1">
-                    <h3 className="font-semibold text-foreground text-base">{t('upgrade.click_power_name')}</h3>
+                    <h3 className="font-semibold text-foreground text-base">{t(nameKey)}</h3>
                     {isMaxed ? (
                       <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ background: 'hsl(var(--success) / 0.15)', color: 'hsl(var(--success))' }}>
                         {t('upgrade.max')}
@@ -57,7 +60,7 @@ const UpgradeTab: React.FC = () => {
                     )}
                   </div>
 
-                  <p className="text-sm text-muted-foreground mb-2">{t('upgrade.click_power_desc')}</p>
+                  <p className="text-sm text-muted-foreground mb-2">{t(descKey)}</p>
 
                   {/* Progress bar */}
                   <div className="flex items-center gap-3">
@@ -76,7 +79,7 @@ const UpgradeTab: React.FC = () => {
                   </div>
 
                   {/* Stats */}
-                  <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
+                  {isClickPower && <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
                     <span>
                       {t('upgrade.bonus')}: <span className="font-mono-game text-foreground">
                         +${totalBonus}{t('upgrade.per_click')}
@@ -89,7 +92,7 @@ const UpgradeTab: React.FC = () => {
                         </span>
                       </span>
                     )}
-                  </div>
+                  </div>}
                 </div>
               </div>
             </div>

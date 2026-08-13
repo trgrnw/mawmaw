@@ -39,4 +39,22 @@ export const defaultUpgrades: Upgrade[] = [
     maxLevel: upgradeLevels.length,
     levels: upgradeLevels,
   },
+  {
+    id: 'autoclicker',
+    name: 'Автокликер',
+    description: 'Автоматически выполняет один клик в секунду',
+    emoji: '🤖',
+    currentLevel: 0,
+    maxLevel: 1,
+    levels: [{ level: 1, bonus: 1, cost: 70_000_000 }],
+  },
+  {
+    id: 'auto-tax',
+    name: 'Автоуплата налогов',
+    description: 'Автоматически оплачивает налоги при достаточном балансе',
+    emoji: '🧾',
+    currentLevel: 0,
+    maxLevel: 1,
+    levels: [{ level: 1, bonus: 1, cost: 100_000_000 }],
+  },
 ];

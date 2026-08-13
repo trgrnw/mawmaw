@@ -67,12 +67,12 @@ export function savedStateTimestamp(state: Record<string, unknown> | null): numb
   return Number.isFinite(value) && value > 0 ? value : 0;
 }
 
-/** A device-local save is authoritative; cloud is only for first-time restore. */
+/** Authenticated players use cloud state; local state is only migration/offline cache. */
 export function selectStartupState(
   localState: Record<string, unknown> | null,
   cloudState: Record<string, unknown> | null,
 ): Record<string, unknown> | null {
-  return localState ?? cloudState;
+  return cloudState ?? localState;
 }
 
 /** Prevents an autosave from crossing the guest/account identity boundary. */

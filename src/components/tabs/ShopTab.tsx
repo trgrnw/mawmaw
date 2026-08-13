@@ -57,10 +57,14 @@ const ShopTab: React.FC = () => {
 
   const handleBuy = () => {
     if (!selectedItem) return;
+    const itemId = selectedItem.id;
     const finalPrice = calcFinalPrice();
     if (balance < finalPrice) return;
-    buyShopItem(selectedItem.id, finalPrice);
+    // Close/unmount the modal before its trigger becomes disabled. Otherwise
+    // Radix may keep the document's pointer-events lock after a purchase.
     setDialogOpen(false);
+    setSelectedItem(null);
+    window.setTimeout(() => buyShopItem(itemId, finalPrice), 0);
   };
 
   const catItems = selectedCategory ? shopItemsData.filter(i => i.categoryId === selectedCategory) : [];
