@@ -5,19 +5,27 @@ import type { Json } from '@/integrations/supabase/types';
 export function useCloudSave(userId: string | undefined) {
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
 
-  const forceSave = useCallback(async (gameState: Record<string, unknown>, netWorth: number) => {
+  const writeState = useCallback(async (gameState: Record<string, unknown>, netWorth: number) => {
     if (!userId) return;
-    const write = async () => {
-      const { error } = await supabase.rpc('save_game_state' as never, {
-        p_state: gameState as unknown as Json,
-        p_net_worth: netWorth,
-      } as never);
-      if (error) throw error;
-    };
-    const queued = saveQueueRef.current.catch(() => undefined).then(write);
+    const { data, error } = await supabase.rpc('save_game_state' as never, {
+      p_state: gameState as unknown as Json,
+      p_net_worth: netWorth,
+    } as never);
+    if (error) throw error;
+    const result = data as unknown as { saved?: boolean; reason?: string } | null;
+    if (result?.saved === false) throw new Error(result.reason || 'Cloud rejected the save');
+  }, [userId]);
+
+  const forceSave = useCallback(async (gameState: Record<string, unknown>, netWorth: number) => {
+    const queued = saveQueueRef.current.catch(() => undefined).then(() => writeState(gameState, netWorth));
     saveQueueRef.current = queued;
     return queued;
-  }, [userId]);
+  }, [writeState]);
+
+  // Critical transactions bypass the background queue. Server-side savedAt
+  // ordering prevents older in-flight autosaves from overwriting this state.
+  const forceSaveNow = useCallback((gameState: Record<string, unknown>, netWorth: number) =>
+    writeState(gameState, netWorth), [writeState]);
 
   const loadFromCloud = useCallback(async (): Promise<Record<string, unknown> | null> => {
     if (!userId) return null;
@@ -59,5 +67,5 @@ export function useCloudSave(userId: string | undefined) {
     return Number((data as any)?.amount) || 0;
   }, [userId]);
 
-  return { saveToCloud: forceSave, loadFromCloud, forceSave, claimPending };
+  return { saveToCloud: forceSave, loadFromCloud, forceSave, forceSaveNow, claimPending };
 }

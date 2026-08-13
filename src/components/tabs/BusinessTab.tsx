@@ -4,6 +4,7 @@ import { useI18n } from '@/i18n/I18nContext';
 import { businessCategories, generateBusinessName } from '@/data/businessNames';
 import { businessMergers } from '@/data/mergerData';
 import GameIcon from '@/components/GameIcon';
+import { toast } from 'sonner';
 
 type View = 'main' | 'open' | 'name' | 'merge';
 
@@ -14,6 +15,7 @@ const BusinessTab: React.FC = () => {
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [businessName, setBusinessName] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [openingBusiness, setOpeningBusiness] = useState(false);
 
   const selectedCategory = businessCategories.find(c => c.id === selectedCategoryId);
 
@@ -29,13 +31,23 @@ const BusinessTab: React.FC = () => {
     }
   };
 
-  const handleOpenBusiness = () => {
-    if (selectedCategoryId && businessName.trim()) {
-      const success = openBusiness(selectedCategoryId, businessName.trim());
+  const handleOpenBusiness = async () => {
+    if (selectedCategoryId && businessName.trim() && !openingBusiness) {
+      setOpeningBusiness(true);
+      try {
+        const success = await openBusiness(selectedCategoryId, businessName.trim());
       if (success) {
         setView('main');
         setSelectedCategoryId(null);
         setBusinessName('');
+          toast.success('Бизнес сохранён в Supabase');
+        }
+      } catch (error) {
+        console.error('[BusinessTab] cloud-confirmed business purchase failed', error);
+        toast.error('Бизнес сохранён на устройстве. Облачная синхронизация будет повторена автоматически.');
+        setView('main');
+      } finally {
+        setOpeningBusiness(false);
       }
     }
   };
@@ -290,14 +302,14 @@ const BusinessTab: React.FC = () => {
 
         <button
           onClick={handleOpenBusiness}
-          disabled={!businessName.trim() || !canAfford}
+          disabled={openingBusiness || !businessName.trim() || !canAfford}
           className={`w-full rounded-xl py-3 text-sm font-semibold transition-all ${
-            businessName.trim() && canAfford
+            !openingBusiness && businessName.trim() && canAfford
               ? 'bg-primary text-primary-foreground hover:shadow-md'
               : 'bg-muted text-muted-foreground cursor-not-allowed'
           }`}
         >
-          <span className="flex items-center gap-1"><GameIcon name="build" size={16} themed /> {t('biz.open_btn')}</span> — ${formatMoney(selectedCategory.cost)}
+          <span className="flex items-center gap-1"><GameIcon name="build" size={16} themed /> {openingBusiness ? 'Сохраняю в Supabase…' : t('biz.open_btn')}</span> — ${formatMoney(selectedCategory.cost)}
         </button>
 
         <div className="stat-card rounded-xl p-3 flex items-center gap-2">
