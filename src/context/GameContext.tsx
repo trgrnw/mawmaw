@@ -182,10 +182,15 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // player's in-memory state or enable saving under another key.
       if (generation !== loadGenerationRef.current) return;
 
-      // Supabase is authoritative for authenticated players on every device.
-      if (cloudSaved) {
+      // Supabase is authoritative across devices. A newer local timestamp is
+      // treated only as a pending write-through operation interrupted by a
+      // reload; it is applied now and immediately uploaded by autosave.
+      const localIsPending = !!localSaved && savedStateTimestamp(localSaved) > savedStateTimestamp(cloudSaved);
+      if (cloudSaved && !localIsPending) {
         applyLoadedState(cloudSaved);
         localStorage.setItem(localKey, JSON.stringify(cloudSaved));
+      } else if (localIsPending && localSaved) {
+        applyLoadedState(localSaved);
       } else if (cloudExistedOrEmpty && localSaved) {
         // First login after upgrading from local-only storage: migrate once.
         applyLoadedState(localSaved);
@@ -327,6 +332,23 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (user?.id && cloudLoadOkRef.current) {
       forceSave(state, nw).catch(error => console.error('[GameContext] cloud save failed', error));
     }
+  }, [user?.id, saveKey, forceSave]);
+
+  const syncProgress = useCallback(async () => {
+    if (!user?.id || !cloudLoadOkRef.current) return;
+    const s = latestState.current;
+    const state = serializeState({
+      balance: s.balance, clickPower: s.clickPower, playerXp: s.playerXp,
+      totalEarnedClick: s.totalEarnedClick, totalEarnedBusiness: s.totalEarnedBusiness,
+      totalEarnedRent: s.totalEarnedRent, totalEarnedDividends: s.totalEarnedDividends,
+      totalEarnedTrading: s.totalEarnedTrading, totalEarnedCrypto: s.totalEarnedCrypto,
+      totalEarnedGems: s.totalEarnedGems,
+      upgrades: s.upgrades, shopItems: s.shopItems, accessoryItems: s.accessoryItems,
+      businesses: s.businesses, stockHoldings: s.stockHoldings, cryptoHoldings: s.cryptoHoldings,
+      licensePlates: s.licensePlates, stockPrices: s.stockPrices, cryptoPrices: s.cryptoPrices,
+    });
+    localStorage.setItem(saveKey, JSON.stringify(state));
+    await forceSave(state, calculateFinancialSnapshot(s).netWorth);
   }, [user?.id, saveKey, forceSave]);
 
   // Save shortly after every meaningful state change. Local storage is
@@ -841,7 +863,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       totalEarnedClick, totalEarnedBusiness, totalEarnedRent, totalEarnedDividends, totalEarnedTrading, totalEarnedCrypto, totalEarnedGems,
       upgrades, shopItems, accessoryItems, businesses, passiveIncome, netWorth, totalTaxDue,
       stockHoldings, cryptoHoldings, stockPrices, cryptoPrices, licensePlates,
-      click, buyUpgrade, buyShopItem, buyAccessory, openBusiness, mergeBusiness, deleteBusiness, payTaxes,
+      click, buyUpgrade, buyShopItem, syncProgress, buyAccessory, openBusiness, mergeBusiness, deleteBusiness, payTaxes,
       buyStock, sellStock, buyCrypto, sellCrypto, spendBalance, addBalance, replaceBalance, addExperience,
       addLicensePlate, assignPlate, removePlate, formatMoney,
     }}>

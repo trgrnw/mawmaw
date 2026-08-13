@@ -1,19 +1,20 @@
 import React, { useState } from 'react';
 import { useGame, formatMoney } from '@/context/GameContext';
 import { shopCategories, shopItemsData, carEngineOptions, carTrimOptions, crewOption, finishOptions, ShopItemData } from '@/data/shopData';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import GameIcon from '@/components/GameIcon';
 import { useI18n } from '@/i18n/I18nContext';
+import { toast } from 'sonner';
 
 type View = 'categories' | 'items';
 
 const ShopTab: React.FC = () => {
   const { t, td } = useI18n();
-  const { shopItems, buyShopItem, balance } = useGame();
+  const { shopItems, buyShopItem, syncProgress, balance } = useGame();
   const [view, setView] = useState<View>('categories');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedItem, setSelectedItem] = useState<ShopItemData | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [buying, setBuying] = useState(false);
 
   // Car config
   const [carEngine, setCarEngine] = useState('df');
@@ -55,16 +56,29 @@ const ShopTab: React.FC = () => {
 
   const isPurchased = (itemId: string) => shopItems.find(i => i.id === itemId)?.purchased || false;
 
-  const handleBuy = () => {
-    if (!selectedItem) return;
-    const itemId = selectedItem.id;
+  const handleBuy = async () => {
+    if (!selectedItem || buying) return;
     const finalPrice = calcFinalPrice();
     if (balance < finalPrice) return;
-    // Close/unmount the modal before its trigger becomes disabled. Otherwise
-    // Radix may keep the document's pointer-events lock after a purchase.
-    setDialogOpen(false);
-    setSelectedItem(null);
-    window.setTimeout(() => buyShopItem(itemId, finalPrice), 0);
+    setBuying(true);
+    const purchased = buyShopItem(selectedItem.id, finalPrice);
+    if (!purchased) {
+      setBuying(false);
+      return;
+    }
+    try {
+      await syncProgress();
+      setDialogOpen(false);
+      setSelectedItem(null);
+      toast.success(t('shop.purchased'));
+    } catch (error) {
+      console.error('[ShopTab] confirmed purchase cloud save failed', error);
+      toast.error('Покупка сохранена на устройстве и будет отправлена в облако при восстановлении связи');
+      setDialogOpen(false);
+      setSelectedItem(null);
+    } finally {
+      setBuying(false);
+    }
   };
 
   const catItems = selectedCategory ? shopItemsData.filter(i => i.categoryId === selectedCategory) : [];
@@ -168,12 +182,18 @@ const ShopTab: React.FC = () => {
       )}
 
       {/* Purchase confirmation dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{t('shop.confirm_title')}</DialogTitle>
-            <DialogDescription>{t('shop.confirm_desc')}</DialogDescription>
-          </DialogHeader>
+      {dialogOpen && selectedItem && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onMouseDown={(event) => {
+          if (event.target === event.currentTarget && !buying) setDialogOpen(false);
+        }}>
+          <div role="dialog" aria-modal="true" aria-labelledby="shop-purchase-title" className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl border border-border bg-background p-6 shadow-2xl">
+            <div className="mb-4 flex items-start justify-between gap-4">
+              <div>
+                <h2 id="shop-purchase-title" className="text-lg font-semibold">{t('shop.confirm_title')}</h2>
+                <p className="text-sm text-muted-foreground">{t('shop.confirm_desc')}</p>
+              </div>
+              <button type="button" disabled={buying} onClick={() => setDialogOpen(false)} className="text-xl text-muted-foreground hover:text-foreground disabled:opacity-50" aria-label="Закрыть">×</button>
+            </div>
           {selectedItem && (
             <div className="space-y-4">
               <div className="text-center">
@@ -327,20 +347,21 @@ const ShopTab: React.FC = () => {
                 </div>
                 <button
                   onClick={handleBuy}
-                  disabled={balance < calcFinalPrice()}
+                  disabled={buying || balance < calcFinalPrice()}
                   className={`w-full rounded-xl py-2.5 text-sm font-semibold transition-all ${
-                    balance >= calcFinalPrice()
+                    !buying && balance >= calcFinalPrice()
                       ? 'bg-primary text-primary-foreground hover:opacity-90 active:scale-[0.98]'
                       : 'bg-muted text-muted-foreground cursor-not-allowed'
                   }`}
                 >
-                  {t('shop.confirm_buy')}
+                  {buying ? 'Сохраняю в облако…' : t('shop.confirm_buy')}
                 </button>
               </div>
             </div>
           )}
-        </DialogContent>
-      </Dialog>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
