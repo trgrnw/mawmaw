@@ -1,501 +1,114 @@
-import React, { useState, useMemo, memo } from 'react';
-import { useGame } from '@/context/GameContext';
-import { useI18n } from '@/i18n/I18nContext';
-import { stockAssets, cryptoAssets } from '@/data/investmentData';
-import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { LineChart, Line, ResponsiveContainer, YAxis, Tooltip } from 'recharts';
-import GameIcon from '@/components/GameIcon';
+import React, { memo, useMemo, useState } from 'react';
+import { Line, LineChart, ResponsiveContainer, Tooltip, YAxis } from 'recharts';
+import { toast } from 'sonner';
 import AssetLogo from '@/components/AssetLogo';
+import GameIcon from '@/components/GameIcon';
+import { useGame } from '@/context/GameContext';
+import { cryptoAssets, stockAssets } from '@/data/investmentData';
+import { useI18n } from '@/i18n/I18nContext';
 
-type View = 'main' | 'stocks' | 'crypto' | 'portfolio';
+type Market = 'stocks' | 'crypto' | 'portfolio';
+type Trade = 'buy' | 'sell';
 
-const MiniChart = memo<{ history: number[]; color: string }>(({ history, color }) => {
-  const data = useMemo(() => history.map((v, i) => ({ i, v })), [history]);
-  return (
-    <ResponsiveContainer width="100%" height={50}>
-      <LineChart data={data}>
-        <Line type="monotone" dataKey="v" stroke={color} dot={false} strokeWidth={1.5} isAnimationActive={false} />
-        <YAxis domain={['dataMin', 'dataMax']} hide />
-      </LineChart>
-    </ResponsiveContainer>
-  );
+const Chart = memo(({ history, positive }: { history: number[]; positive: boolean }) => {
+  const data = useMemo(() => history.map((value, index) => ({ index, value })), [history]);
+  return <ResponsiveContainer width="100%" height={190}><LineChart data={data}><YAxis hide domain={['dataMin', 'dataMax']} /><Tooltip formatter={(value: number) => [`$${value.toLocaleString()}`, '']} contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 12 }} labelStyle={{ display: 'none' }} /><Line type="monotone" dataKey="value" stroke={positive ? '#22c55e' : '#ef4444'} strokeWidth={2.5} dot={false} isAnimationActive={false} /></LineChart></ResponsiveContainer>;
 });
-MiniChart.displayName = 'MiniChart';
+Chart.displayName = 'Chart';
 
-const BigChart = memo<{ history: number[]; color: string; formatMoney: (n: number) => string }>(({ history, color, formatMoney }) => {
-  const data = useMemo(() => history.map((v, i) => ({ i, v })), [history]);
-  return (
-    <ResponsiveContainer width="100%" height={200}>
-      <LineChart data={data}>
-        <Line type="monotone" dataKey="v" stroke={color} dot={false} strokeWidth={2} isAnimationActive={false} />
-        <YAxis domain={['dataMin', 'dataMax']} hide />
-        <Tooltip
-          formatter={(val: number) => ['$' + formatMoney(val), '']}
-          contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8 }}
-          labelStyle={{ display: 'none' }}
-        />
-      </LineChart>
-    </ResponsiveContainer>
-  );
-});
-BigChart.displayName = 'BigChart';
-
-const priceChange = (history: number[]) => {
-  if (history.length < 2) return 0;
-  return ((history[history.length - 1] - history[0]) / history[0]) * 100;
-};
+const changePercent = (history: number[]) => history.length < 2 || !history[0] ? 0 : ((history.at(-1)! - history[0]) / history[0]) * 100;
 
 const InvestmentsTab: React.FC = () => {
-  const {
-    balance, stockHoldings, cryptoHoldings, stockPrices, cryptoPrices,
-    buyStock, sellStock, buyCrypto, sellCrypto, formatMoney,
-  } = useGame();
+  const game = useGame();
   const { t } = useI18n();
+  const [market, setMarket] = useState<Market>('stocks');
+  const [assetId, setAssetId] = useState(stockAssets[0]?.id ?? '');
+  const [trade, setTrade] = useState<Trade>('buy');
+  const [quantity, setQuantity] = useState('1');
+  const [saving, setSaving] = useState(false);
 
-  const [view, setView] = useState<View>('main');
-  const [selectedAsset, setSelectedAsset] = useState<string | null>(null);
-  const [tradeQty, setTradeQty] = useState('1');
-  const [tradeType, setTradeType] = useState<'buy' | 'sell'>('buy');
+  const stockValue = game.stockHoldings.reduce((sum, item) => sum + (game.stockPrices[item.assetId]?.current ?? item.avgBuyPrice) * item.quantity, 0);
+  const cryptoValue = game.cryptoHoldings.reduce((sum, item) => sum + (game.cryptoPrices[item.assetId]?.current ?? item.avgBuyPrice) * item.quantity, 0);
+  const pnl = [...game.stockHoldings, ...game.cryptoHoldings].reduce((sum, item) => {
+    const current = game.stockPrices[item.assetId]?.current ?? game.cryptoPrices[item.assetId]?.current ?? item.avgBuyPrice;
+    return sum + (current - item.avgBuyPrice) * item.quantity;
+  }, 0);
 
-  const stockValue = stockHoldings.reduce((s, h) => s + (stockPrices[h.assetId]?.current ?? 0) * h.quantity, 0);
-  const cryptoValue = cryptoHoldings.reduce((s, h) => s + (cryptoPrices[h.assetId]?.current ?? 0) * h.quantity, 0);
-  const totalPnL = useMemo(() => {
-    const sPnL = stockHoldings.reduce((s, h) => {
-      const cur = stockPrices[h.assetId]?.current ?? h.avgBuyPrice;
-      return s + (cur - h.avgBuyPrice) * h.quantity;
-    }, 0);
-    const cPnL = cryptoHoldings.reduce((s, h) => {
-      const cur = cryptoPrices[h.assetId]?.current ?? h.avgBuyPrice;
-      return s + (cur - h.avgBuyPrice) * h.quantity;
-    }, 0);
-    return sPnL + cPnL;
-  }, [stockHoldings, cryptoHoldings, stockPrices, cryptoPrices]);
+  const assets = market === 'crypto' ? cryptoAssets : stockAssets;
+  const prices = market === 'crypto' ? game.cryptoPrices : game.stockPrices;
+  const holdings = market === 'crypto' ? game.cryptoHoldings : game.stockHoldings;
+  const asset = assets.find(item => item.id === assetId) ?? assets[0];
+  const priceData = asset ? prices[asset.id] : undefined;
+  const holding = asset ? holdings.find(item => item.assetId === asset.id) : undefined;
+  const rawQuantity = Number(quantity);
+  const effectiveQuantity = market === 'stocks' ? Math.floor(rawQuantity) : rawQuantity;
+  const total = (priceData?.current ?? 0) * (Number.isFinite(effectiveQuantity) ? effectiveQuantity : 0);
+  const canTrade = !!asset && !!priceData && effectiveQuantity > 0 && (trade === 'buy' ? game.balance >= total : !!holding && holding.quantity >= effectiveQuantity);
 
-  const handleStockTrade = () => {
-    if (!selectedAsset) return;
-    const qty = parseFloat(tradeQty);
-    if (isNaN(qty) || qty <= 0) return;
-    const intQty = Math.floor(qty);
-    if (tradeType === 'buy') buyStock(selectedAsset, intQty);
-    else sellStock(selectedAsset, intQty);
-    setTradeQty('1');
+  const switchMarket = (next: Market) => {
+    setMarket(next);
+    setAssetId(next === 'crypto' ? cryptoAssets[0]?.id ?? '' : stockAssets[0]?.id ?? '');
+    setTrade('buy');
+    setQuantity('1');
   };
 
-  const handleCryptoTrade = () => {
-    if (!selectedAsset) return;
-    const qty = parseFloat(tradeQty);
-    if (isNaN(qty) || qty <= 0) return;
-    if (tradeType === 'buy') buyCrypto(selectedAsset, qty);
-    else sellCrypto(selectedAsset, qty);
-    setTradeQty('1');
+  const executeTrade = async () => {
+    if (!asset || !canTrade || saving) return;
+    setSaving(true);
+    try {
+      const completed = market === 'stocks'
+        ? trade === 'buy' ? game.buyStock(asset.id, effectiveQuantity) : game.sellStock(asset.id, effectiveQuantity)
+        : trade === 'buy' ? game.buyCrypto(asset.id, effectiveQuantity) : game.sellCrypto(asset.id, effectiveQuantity);
+      if (!completed) {
+        toast.error(trade === 'buy' ? 'Недостаточно средств для сделки' : 'Недостаточно актива для продажи');
+        return;
+      }
+      await game.syncProgress();
+      toast.success(`${trade === 'buy' ? t('inv.buy') : t('inv.sell')}: ${asset.ticker}`);
+      setQuantity(market === 'stocks' ? '1' : '0.01');
+    } catch (error) {
+      console.error('[InvestmentsTab] trade save failed', error);
+      toast.error('Сделка сохранена на устройстве. Облачная синхронизация повторится автоматически.');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  // ── MAIN VIEW ──
-  if (view === 'main') {
-    return (
-      <div className="space-y-6">
-        <div>
-          <h2 className="text-2xl font-bold mb-1 flex items-center gap-2"><GameIcon name="investments" size={24} themed /> {t('inv.title')}</h2>
-          <p className="text-sm text-muted-foreground">{t('inv.subtitle')}</p>
-        </div>
+  return <div className="max-w-6xl space-y-5 pb-8">
+    <header className="relative overflow-hidden rounded-3xl border border-violet-500/20 bg-card p-5 sm:p-7">
+      <div className="absolute -right-20 -top-24 h-64 w-64 rounded-full bg-violet-500/10 blur-3xl" />
+      <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between"><div><div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-500/15"><GameIcon name="investments" size={26} themed /></div><h2 className="text-2xl font-bold sm:text-3xl">{t('inv.title')}</h2><p className="mt-1 text-sm text-muted-foreground">{t('inv.subtitle')}</p></div><div className="grid grid-cols-3 gap-2"><Metric label={t('inv.portfolio')} value={`$${game.formatMoney(stockValue + cryptoValue)}`} /><Metric label="P&L" value={`${pnl >= 0 ? '+' : ''}$${game.formatMoney(pnl)}`} tone={pnl >= 0 ? 'good' : 'bad'} /><Metric label={t('shop.balance')} value={`$${game.formatMoney(game.balance)}`} /></div></div>
+    </header>
 
-        <div className="grid grid-cols-3 gap-3">
-          <Card className="bg-card"><CardContent className="p-4 text-center">
-            <p className="text-xs text-muted-foreground">{t('inv.portfolio')}</p>
-            <p className="text-lg font-bold text-foreground">${formatMoney(stockValue + cryptoValue)}</p>
-          </CardContent></Card>
-          <Card className="bg-card"><CardContent className="p-4 text-center">
-            <p className="text-xs text-muted-foreground">P&L</p>
-            <p className={`text-lg font-bold ${totalPnL >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-              {totalPnL >= 0 ? '+' : ''}{formatMoney(totalPnL)}
-            </p>
-          </CardContent></Card>
-          <Card className="bg-card"><CardContent className="p-4 text-center">
-            <p className="text-xs text-muted-foreground">{t('inv.positions')}</p>
-            <p className="text-lg font-bold text-foreground">{stockHoldings.length + cryptoHoldings.length}</p>
-          </CardContent></Card>
-        </div>
+    <nav className="grid grid-cols-3 gap-2 rounded-2xl border border-border bg-card/80 p-1.5">
+      {([['stocks', t('inv.stocks'), 'stocks'], ['crypto', t('inv.crypto'), 'crypto'], ['portfolio', t('inv.my_portfolio'), 'briefcase']] as Array<[Market, string, string]>).map(([id, label, icon]) => <button key={id} onClick={() => switchMarket(id)} className={`flex min-h-12 items-center justify-center gap-2 rounded-xl px-2 text-xs font-semibold transition-colors sm:text-sm ${market === id ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}><GameIcon name={icon} size={17} /><span className="truncate">{label}</span></button>)}
+    </nav>
 
-        <div className="grid grid-cols-1 gap-3">
-          {[
-            { id: 'stocks' as View, icon: 'stocks', title: t('inv.stocks'), desc: `${stockAssets.length} ${t('inv.companies')}`, sub: `${t('inv.portfolio')}: $${formatMoney(stockValue)}` },
-            { id: 'crypto' as View, icon: 'crypto', title: t('inv.crypto'), desc: `${cryptoAssets.length} ${t('inv.coins')}`, sub: `${t('inv.portfolio')}: $${formatMoney(cryptoValue)}` },
-            { id: 'portfolio' as View, icon: 'briefcase', title: t('inv.my_portfolio'), desc: `${stockHoldings.length + cryptoHoldings.length} ${t('inv.positions')}`, sub: `${t('inv.total')}: $${formatMoney(stockValue + cryptoValue)}` },
-          ].map(c => (
-            <button
-              key={c.id}
-              onClick={() => { setView(c.id); setSelectedAsset(null); }}
-              className="stat-card rounded-2xl p-5 text-left flex items-center gap-4 hover:ring-2 hover:ring-primary/30 transition-all"
-            >
-              <GameIcon name={c.icon} size={40} themed />
-              <div className="flex-1">
-                <h3 className="font-bold text-foreground">{c.title}</h3>
-                <p className="text-sm text-muted-foreground">{c.desc}</p>
-              </div>
-              <span className="text-sm font-medium text-muted-foreground">{c.sub}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-    );
-  }
+    {market === 'portfolio' ? <Portfolio game={game} stockValue={stockValue} cryptoValue={cryptoValue} open={(kind, id) => { setMarket(kind); setAssetId(id); setTrade('sell'); setQuantity(kind === 'stocks' ? '1' : '0.01'); }} t={t} /> : asset && priceData && <div className="grid gap-4 xl:grid-cols-[1fr_370px]">
+      <section className="space-y-3">
+        <div className="flex items-center justify-between"><div><h3 className="text-xl font-bold">{market === 'stocks' ? t('inv.stock_market') : t('inv.crypto_market')}</h3><p className="text-sm text-muted-foreground">{assets.length} {market === 'stocks' ? t('inv.companies') : t('inv.coins')}</p></div><span className="text-sm text-muted-foreground">{t('inv.portfolio')}: <b className="text-foreground">${game.formatMoney(market === 'stocks' ? stockValue : cryptoValue)}</b></span></div>
+        <div className="grid gap-2 sm:grid-cols-2">{assets.map(item => { const price = prices[item.id]; if (!price) return null; const change = changePercent(price.history); const owned = holdings.find(position => position.assetId === item.id); return <button key={item.id} onClick={() => { setAssetId(item.id); setTrade('buy'); setQuantity(market === 'stocks' ? '1' : '0.01'); }} className={`flex items-center gap-3 rounded-2xl border bg-card p-3 text-left transition-colors ${asset.id === item.id ? 'border-violet-400 bg-violet-500/5' : 'border-border hover:bg-muted/50'}`}><AssetLogo assetId={item.id} size={34} /><div className="min-w-0 flex-1"><p className="font-bold">{item.ticker}</p><p className="truncate text-[11px] text-muted-foreground">{item.name}{owned ? ` · ${owned.quantity.toFixed(market === 'stocks' ? 0 : 4)}` : ''}</p></div><div className="text-right"><p className="font-mono-game text-xs font-bold">${game.formatMoney(price.current)}</p><p className={`text-[10px] ${change >= 0 ? 'text-emerald-500' : 'text-destructive'}`}>{change >= 0 ? '+' : ''}{change.toFixed(2)}%</p></div></button>; })}</div>
+      </section>
 
-  // ── STOCKS VIEW ──
-  if (view === 'stocks') {
-    const isTrading = selectedAsset !== null;
-    const asset = isTrading ? stockAssets.find(a => a.id === selectedAsset) : null;
-    const priceData = isTrading && asset ? stockPrices[asset.id] : null;
-    const holding = isTrading ? stockHoldings.find(h => h.assetId === selectedAsset) : null;
-    const qty = parseFloat(tradeQty) || 0;
-    const cost = priceData ? priceData.current * Math.floor(qty) : 0;
-
-    if (isTrading && asset && priceData) {
-      const change = priceChange(priceData.history);
-      return (
-        <div className="space-y-4">
-          <button onClick={() => setSelectedAsset(null)} className="text-sm text-primary hover:underline">{t('inv.back_stocks')}</button>
-          <div className="flex items-center gap-3">
-            <AssetLogo assetId={asset.id} size={40} />
-            <div>
-              <h2 className="text-xl font-bold text-foreground">{asset.ticker}</h2>
-              <p className="text-sm text-muted-foreground">{asset.name} · {asset.sector}</p>
-            </div>
-          </div>
-
-          <div className="flex items-baseline gap-3">
-            <span className="text-3xl font-bold text-foreground">${formatMoney(priceData.current)}</span>
-            <span className={`text-sm font-medium ${change >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-              {change >= 0 ? '▲' : '▼'} {Math.abs(change).toFixed(2)}%
-            </span>
-          </div>
-
-          <Card className="bg-card"><CardContent className="p-3">
-            <BigChart history={priceData.history} color={change >= 0 ? '#22c55e' : '#ef4444'} formatMoney={formatMoney} />
-          </CardContent></Card>
-
-          {holding && (
-            <Card className="bg-card"><CardContent className="p-4">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">{t('inv.quantity')}:</span>
-                <span className="font-medium text-foreground">{holding.quantity} {t('inv.pcs')}</span>
-              </div>
-              <div className="flex justify-between text-sm mt-1">
-                <span className="text-muted-foreground">{t('inv.avg_price')}:</span>
-                <span className="font-medium text-foreground">${formatMoney(holding.avgBuyPrice)}</span>
-              </div>
-              <div className="flex justify-between text-sm mt-1">
-                <span className="text-muted-foreground">{t('inv.value')}:</span>
-                <span className="font-medium text-foreground">${formatMoney(priceData.current * holding.quantity)}</span>
-              </div>
-              {(() => {
-                const pnl = (priceData.current - holding.avgBuyPrice) * holding.quantity;
-                return (
-                  <div className="flex justify-between text-sm mt-1">
-                    <span className="text-muted-foreground">P&L:</span>
-                    <span className={`font-medium ${pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                      {pnl >= 0 ? '+' : ''}{formatMoney(pnl)}
-                    </span>
-                  </div>
-                );
-              })()}
-              {asset.dividendYield > 0 && (
-                <div className="flex justify-between text-sm mt-1">
-                  <span className="text-muted-foreground">{t('inv.dividends_year')}:</span>
-                  <span className="font-medium text-green-500">{(asset.dividendYield * 100).toFixed(1)}%</span>
-                </div>
-              )}
-            </CardContent></Card>
-          )}
-
-          <Card className="bg-card"><CardContent className="p-4 space-y-3">
-            <div className="flex gap-2">
-              <button onClick={() => setTradeType('buy')} className={`flex-1 py-2 rounded-xl text-sm font-medium transition-all ${tradeType === 'buy' ? 'bg-green-500 text-white' : 'bg-muted text-muted-foreground'}`}>{t('inv.buy')}</button>
-              <button onClick={() => setTradeType('sell')} className={`flex-1 py-2 rounded-xl text-sm font-medium transition-all ${tradeType === 'sell' ? 'bg-red-500 text-white' : 'bg-muted text-muted-foreground'}`}>{t('inv.sell')}</button>
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground">{t('inv.qty_pcs')}</label>
-              <Input type="number" min="1" step="1" value={tradeQty} onChange={e => setTradeQty(e.target.value)} className="mt-1" />
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">{t('inv.total_cost')}:</span>
-              <span className="font-bold text-foreground">${formatMoney(cost)}</span>
-            </div>
-            {tradeType === 'sell' && holding && (
-              <p className="text-xs text-muted-foreground">{t('inv.available')}: {holding.quantity} {t('inv.pcs')}</p>
-            )}
-            <button
-              onClick={handleStockTrade}
-              disabled={qty <= 0 || (tradeType === 'buy' && cost > balance) || (tradeType === 'sell' && (!holding || Math.floor(qty) > holding.quantity))}
-              className={`w-full py-3 rounded-xl font-bold text-white transition-all disabled:opacity-40 ${tradeType === 'buy' ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600'}`}
-            >
-              {tradeType === 'buy' ? `${t('inv.buy')} ${Math.floor(qty)} ${t('inv.pcs')}` : `${t('inv.sell')} ${Math.floor(qty)} ${t('inv.pcs')}`}
-            </button>
-          </CardContent></Card>
-        </div>
-      );
-    }
-
-    return (
-      <div className="space-y-4">
-        <button onClick={() => setView('main')} className="text-sm text-primary hover:underline">{t('inv.back')}</button>
-        <h2 className="text-xl font-bold text-foreground flex items-center gap-2"><GameIcon name="stocks" size={22} themed /> {t('inv.stock_market')}</h2>
-        <div className="space-y-2">
-          {stockAssets.map(a => {
-            const p = stockPrices[a.id];
-            const change = priceChange(p.history);
-            const h = stockHoldings.find(h => h.assetId === a.id);
-            return (
-              <button
-                key={a.id}
-                onClick={() => { setSelectedAsset(a.id); setTradeType('buy'); setTradeQty('1'); }}
-                className="stat-card w-full rounded-xl p-3 flex items-center gap-3 hover:ring-2 hover:ring-primary/30 transition-all text-left"
-              >
-                <AssetLogo assetId={a.id} size={24} />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-foreground text-sm">{a.ticker}</span>
-                    <span className="text-xs text-muted-foreground truncate">{a.name}</span>
-                  </div>
-                  {h && <span className="text-xs text-primary">{h.quantity} {t('inv.pcs')}</span>}
-                </div>
-                <div className="w-20">
-                  <MiniChart history={p.history} color={change >= 0 ? '#22c55e' : '#ef4444'} />
-                </div>
-                <div className="text-right min-w-[70px]">
-                  <p className="text-sm font-bold text-foreground">${formatMoney(p.current)}</p>
-                  <p className={`text-xs ${change >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                    {change >= 0 ? '+' : ''}{change.toFixed(1)}%
-                  </p>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    );
-  }
-
-  // ── CRYPTO VIEW ──
-  if (view === 'crypto') {
-    const isTrading = selectedAsset !== null;
-    const asset = isTrading ? cryptoAssets.find(a => a.id === selectedAsset) : null;
-    const priceData = isTrading && asset ? cryptoPrices[asset.id] : null;
-    const holding = isTrading ? cryptoHoldings.find(h => h.assetId === selectedAsset) : null;
-    const qty = parseFloat(tradeQty) || 0;
-    const cost = priceData ? priceData.current * qty : 0;
-
-    if (isTrading && asset && priceData) {
-      const change = priceChange(priceData.history);
-      return (
-        <div className="space-y-4">
-          <button onClick={() => setSelectedAsset(null)} className="text-sm text-primary hover:underline">{t('inv.back_crypto')}</button>
-          <div className="flex items-center gap-3">
-            <AssetLogo assetId={asset.id} size={40} />
-            <div>
-              <h2 className="text-xl font-bold text-foreground">{asset.ticker}</h2>
-              <p className="text-sm text-muted-foreground">{asset.name}</p>
-            </div>
-          </div>
-          <div className="flex items-baseline gap-3">
-            <span className="text-3xl font-bold text-foreground">${formatMoney(priceData.current)}</span>
-            <span className={`text-sm font-medium ${change >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-              {change >= 0 ? '▲' : '▼'} {Math.abs(change).toFixed(2)}%
-            </span>
-          </div>
-
-          <Card className="bg-card"><CardContent className="p-3">
-            <BigChart history={priceData.history} color={change >= 0 ? '#22c55e' : '#ef4444'} formatMoney={formatMoney} />
-          </CardContent></Card>
-
-          {holding && (
-            <Card className="bg-card"><CardContent className="p-4">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">{t('inv.quantity')}:</span>
-                <span className="font-medium text-foreground">{holding.quantity.toFixed(4)}</span>
-              </div>
-              <div className="flex justify-between text-sm mt-1">
-                <span className="text-muted-foreground">{t('inv.avg_price')}:</span>
-                <span className="font-medium text-foreground">${formatMoney(holding.avgBuyPrice)}</span>
-              </div>
-              <div className="flex justify-between text-sm mt-1">
-                <span className="text-muted-foreground">{t('inv.value')}:</span>
-                <span className="font-medium text-foreground">${formatMoney(priceData.current * holding.quantity)}</span>
-              </div>
-              {(() => {
-                const pnl = (priceData.current - holding.avgBuyPrice) * holding.quantity;
-                return (
-                  <div className="flex justify-between text-sm mt-1">
-                    <span className="text-muted-foreground">P&L:</span>
-                    <span className={`font-medium ${pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                      {pnl >= 0 ? '+' : ''}{formatMoney(pnl)}
-                    </span>
-                  </div>
-                );
-              })()}
-            </CardContent></Card>
-          )}
-
-          <Card className="bg-card"><CardContent className="p-4 space-y-3">
-            <div className="flex gap-2">
-              <button onClick={() => setTradeType('buy')} className={`flex-1 py-2 rounded-xl text-sm font-medium transition-all ${tradeType === 'buy' ? 'bg-green-500 text-white' : 'bg-muted text-muted-foreground'}`}>{t('inv.buy')}</button>
-              <button onClick={() => setTradeType('sell')} className={`flex-1 py-2 rounded-xl text-sm font-medium transition-all ${tradeType === 'sell' ? 'bg-red-500 text-white' : 'bg-muted text-muted-foreground'}`}>{t('inv.sell')}</button>
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground">{t('inv.quantity')}</label>
-              <Input type="number" min="0.0001" step="0.01" value={tradeQty} onChange={e => setTradeQty(e.target.value)} className="mt-1" />
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">{t('inv.total_cost')}:</span>
-              <span className="font-bold text-foreground">${formatMoney(cost)}</span>
-            </div>
-            {tradeType === 'sell' && holding && (
-              <p className="text-xs text-muted-foreground">{t('inv.available')}: {holding.quantity.toFixed(4)}</p>
-            )}
-            <button
-              onClick={handleCryptoTrade}
-              disabled={qty <= 0 || (tradeType === 'buy' && cost > balance) || (tradeType === 'sell' && (!holding || qty > holding.quantity))}
-              className={`w-full py-3 rounded-xl font-bold text-white transition-all disabled:opacity-40 ${tradeType === 'buy' ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600'}`}
-            >
-              {tradeType === 'buy' ? `${t('inv.buy')} ${qty}` : `${t('inv.sell')} ${qty}`} {asset.ticker}
-            </button>
-          </CardContent></Card>
-        </div>
-      );
-    }
-
-    return (
-      <div className="space-y-4">
-        <button onClick={() => setView('main')} className="text-sm text-primary hover:underline">{t('inv.back')}</button>
-        <h2 className="text-xl font-bold text-foreground flex items-center gap-2"><GameIcon name="crypto" size={22} themed /> {t('inv.crypto_market')}</h2>
-        <div className="space-y-2">
-          {cryptoAssets.map(a => {
-            const p = cryptoPrices[a.id];
-            const change = priceChange(p.history);
-            const h = cryptoHoldings.find(h => h.assetId === a.id);
-            return (
-              <button
-                key={a.id}
-                onClick={() => { setSelectedAsset(a.id); setTradeType('buy'); setTradeQty('1'); }}
-                className="stat-card w-full rounded-xl p-3 flex items-center gap-3 hover:ring-2 hover:ring-primary/30 transition-all text-left"
-              >
-                <AssetLogo assetId={a.id} size={24} />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-foreground text-sm">{a.ticker}</span>
-                    <span className="text-xs text-muted-foreground truncate">{a.name}</span>
-                  </div>
-                  {h && <span className="text-xs text-primary">{h.quantity.toFixed(4)}</span>}
-                </div>
-                <div className="w-20">
-                  <MiniChart history={p.history} color={change >= 0 ? '#22c55e' : '#ef4444'} />
-                </div>
-                <div className="text-right min-w-[70px]">
-                  <p className="text-sm font-bold text-foreground">${formatMoney(p.current)}</p>
-                  <p className={`text-xs ${change >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                    {change >= 0 ? '+' : ''}{change.toFixed(1)}%
-                  </p>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    );
-  }
-
-  // ── PORTFOLIO VIEW ──
-  return (
-    <div className="space-y-4">
-      <button onClick={() => setView('main')} className="text-sm text-primary hover:underline">{t('inv.back')}</button>
-      <h2 className="text-xl font-bold text-foreground flex items-center gap-2"><GameIcon name="briefcase" size={22} themed /> {t('inv.my_portfolio')}</h2>
-
-      <div className="grid grid-cols-2 gap-3">
-        <Card className="bg-card"><CardContent className="p-4 text-center">
-          <p className="text-xs text-muted-foreground">{t('inv.stocks')}</p>
-          <p className="text-lg font-bold text-foreground">${formatMoney(stockValue)}</p>
-        </CardContent></Card>
-        <Card className="bg-card"><CardContent className="p-4 text-center">
-          <p className="text-xs text-muted-foreground">{t('inv.crypto')}</p>
-          <p className="text-lg font-bold text-foreground">${formatMoney(cryptoValue)}</p>
-        </CardContent></Card>
-      </div>
-
-      {stockHoldings.length === 0 && cryptoHoldings.length === 0 ? (
-        <div className="stat-card rounded-2xl p-8 text-center">
-          <span className="block mb-3"><GameIcon name="briefcase" size={48} className="text-muted-foreground" /></span>
-          <p className="text-muted-foreground">{t('inv.empty_portfolio')}</p>
-        </div>
-      ) : (
-        <>
-          {stockHoldings.length > 0 && (
-            <div>
-              <h3 className="text-sm font-semibold text-muted-foreground mb-2 flex items-center gap-1"><GameIcon name="stocks" size={14} /> {t('inv.stocks')}</h3>
-              <div className="space-y-2">
-                {stockHoldings.map(h => {
-                  const a = stockAssets.find(a => a.id === h.assetId)!;
-                  const cur = stockPrices[h.assetId]?.current ?? h.avgBuyPrice;
-                  const pnl = (cur - h.avgBuyPrice) * h.quantity;
-                  const pnlPct = ((cur - h.avgBuyPrice) / h.avgBuyPrice) * 100;
-                  return (
-                    <button
-                      key={h.assetId}
-                      onClick={() => { setView('stocks'); setSelectedAsset(h.assetId); setTradeType('sell'); }}
-                      className="stat-card w-full rounded-xl p-3 flex items-center gap-3 text-left hover:ring-2 hover:ring-primary/30 transition-all"
-                    >
-                      <AssetLogo assetId={a.id} size={24} />
-                      <div className="flex-1">
-                        <span className="font-bold text-foreground text-sm">{a.ticker}</span>
-                        <p className="text-xs text-muted-foreground">{h.quantity} {t('inv.pcs')} · avg ${formatMoney(h.avgBuyPrice)}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-bold text-foreground">${formatMoney(cur * h.quantity)}</p>
-                        <p className={`text-xs ${pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                          {pnl >= 0 ? '+' : ''}{formatMoney(pnl)} ({pnlPct.toFixed(1)}%)
-                        </p>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-          {cryptoHoldings.length > 0 && (
-            <div>
-              <h3 className="text-sm font-semibold text-muted-foreground mb-2 flex items-center gap-1"><GameIcon name="crypto" size={14} /> {t('inv.crypto')}</h3>
-              <div className="space-y-2">
-                {cryptoHoldings.map(h => {
-                  const a = cryptoAssets.find(a => a.id === h.assetId)!;
-                  const cur = cryptoPrices[h.assetId]?.current ?? h.avgBuyPrice;
-                  const pnl = (cur - h.avgBuyPrice) * h.quantity;
-                  const pnlPct = ((cur - h.avgBuyPrice) / h.avgBuyPrice) * 100;
-                  return (
-                    <button
-                      key={h.assetId}
-                      onClick={() => { setView('crypto'); setSelectedAsset(h.assetId); setTradeType('sell'); }}
-                      className="stat-card w-full rounded-xl p-3 flex items-center gap-3 text-left hover:ring-2 hover:ring-primary/30 transition-all"
-                    >
-                      <AssetLogo assetId={a.id} size={24} />
-                      <div className="flex-1">
-                        <span className="font-bold text-foreground text-sm">{a.ticker}</span>
-                        <p className="text-xs text-muted-foreground">{h.quantity.toFixed(4)} · avg ${formatMoney(h.avgBuyPrice)}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-bold text-foreground">${formatMoney(cur * h.quantity)}</p>
-                        <p className={`text-xs ${pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                          {pnl >= 0 ? '+' : ''}{formatMoney(pnl)} ({pnlPct.toFixed(1)}%)
-                        </p>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </>
-      )}
-    </div>
-  );
+      <aside className="h-fit rounded-3xl border border-violet-500/25 bg-card p-5 xl:sticky xl:top-4">
+        <div className="flex items-start justify-between gap-3"><div className="flex items-center gap-3"><AssetLogo assetId={asset.id} size={42} /><div><h3 className="text-xl font-bold">{asset.ticker}</h3><p className="text-xs text-muted-foreground">{asset.name}</p></div></div><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${changePercent(priceData.history) >= 0 ? 'bg-emerald-500/10 text-emerald-500' : 'bg-destructive/10 text-destructive'}`}>{changePercent(priceData.history).toFixed(2)}%</span></div>
+        <p className="mt-4 font-mono-game text-3xl font-bold">${game.formatMoney(priceData.current)}</p><div className="my-3 overflow-hidden rounded-2xl bg-muted/30 p-2"><Chart history={priceData.history} positive={changePercent(priceData.history) >= 0} /></div>
+        {holding && <div className="mb-4 grid grid-cols-2 gap-2"><Small label={t('inv.quantity')} value={holding.quantity.toFixed(market === 'stocks' ? 0 : 4)} /><Small label={t('inv.avg_price')} value={`$${game.formatMoney(holding.avgBuyPrice)}`} /><Small label={t('inv.value')} value={`$${game.formatMoney(holding.quantity * priceData.current)}`} /><Small label="P&L" value={`${priceData.current >= holding.avgBuyPrice ? '+' : ''}$${game.formatMoney((priceData.current - holding.avgBuyPrice) * holding.quantity)}`} /></div>}
+        <div className="grid grid-cols-2 gap-2"><button onClick={() => setTrade('buy')} className={`rounded-xl py-2.5 text-sm font-bold ${trade === 'buy' ? 'bg-emerald-500 text-white' : 'bg-muted text-muted-foreground'}`}>{t('inv.buy')}</button><button onClick={() => setTrade('sell')} className={`rounded-xl py-2.5 text-sm font-bold ${trade === 'sell' ? 'bg-destructive text-destructive-foreground' : 'bg-muted text-muted-foreground'}`}>{t('inv.sell')}</button></div>
+        <label className="mt-4 block text-xs font-semibold text-muted-foreground">{t('inv.quantity')}</label><input type="number" min={market === 'stocks' ? 1 : .0001} step={market === 'stocks' ? 1 : .01} value={quantity} onChange={event => setQuantity(event.target.value)} className="mt-2 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-violet-400" />
+        <div className="mt-4 space-y-2 border-t border-border pt-4"><Row label={t('inv.total_cost')} value={`$${game.formatMoney(total)}`} /><Row label={trade === 'buy' ? t('shop.balance') : t('inv.available')} value={trade === 'buy' ? `$${game.formatMoney(game.balance)}` : holding?.quantity.toFixed(market === 'stocks' ? 0 : 4) ?? '0'} /><button onClick={executeTrade} disabled={!canTrade || saving} className={`mt-2 w-full rounded-xl py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-40 ${trade === 'buy' ? 'bg-emerald-500' : 'bg-destructive'}`}>{saving ? 'Сохраняю сделку…' : `${trade === 'buy' ? t('inv.buy') : t('inv.sell')} ${asset.ticker}`}</button></div>
+      </aside>
+    </div>}
+  </div>;
 };
+
+const Portfolio = ({ game, stockValue, cryptoValue, open, t }: { game: ReturnType<typeof useGame>; stockValue: number; cryptoValue: number; open: (kind: 'stocks' | 'crypto', id: string) => void; t: (key: string) => string }) => {
+  const positions = [...game.stockHoldings.map(item => ({ ...item, kind: 'stocks' as const, asset: stockAssets.find(asset => asset.id === item.assetId), price: game.stockPrices[item.assetId]?.current ?? item.avgBuyPrice })), ...game.cryptoHoldings.map(item => ({ ...item, kind: 'crypto' as const, asset: cryptoAssets.find(asset => asset.id === item.assetId), price: game.cryptoPrices[item.assetId]?.current ?? item.avgBuyPrice }))];
+  return <section className="space-y-4"><div className="grid grid-cols-2 gap-3"><Metric label={t('inv.stocks')} value={`$${game.formatMoney(stockValue)}`} /><Metric label={t('inv.crypto')} value={`$${game.formatMoney(cryptoValue)}`} /></div>{positions.length === 0 ? <div className="flex min-h-64 flex-col items-center justify-center rounded-3xl border border-dashed border-border bg-card/50 p-8 text-center"><GameIcon name="briefcase" size={42} themed /><p className="mt-4 text-sm text-muted-foreground">{t('inv.empty_portfolio')}</p></div> : <div className="grid gap-3 md:grid-cols-2">{positions.map(position => { if (!position.asset) return null; const positionPnl = (position.price - position.avgBuyPrice) * position.quantity; return <button key={`${position.kind}-${position.assetId}`} onClick={() => open(position.kind, position.assetId)} className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4 text-left hover:border-violet-400/50"><AssetLogo assetId={position.assetId} size={38} /><div className="min-w-0 flex-1"><p className="font-bold">{position.asset.ticker}</p><p className="text-xs text-muted-foreground">{position.quantity.toFixed(position.kind === 'stocks' ? 0 : 4)} · avg ${game.formatMoney(position.avgBuyPrice)}</p></div><div className="text-right"><p className="font-mono-game text-sm font-bold">${game.formatMoney(position.price * position.quantity)}</p><p className={`text-xs ${positionPnl >= 0 ? 'text-emerald-500' : 'text-destructive'}`}>{positionPnl >= 0 ? '+' : ''}${game.formatMoney(positionPnl)}</p></div></button>; })}</div>}</section>;
+};
+
+const Metric = ({ label, value, tone }: { label: string; value: string; tone?: 'good' | 'bad' }) => <div className="rounded-2xl border border-border/70 bg-background/50 px-3 py-3"><p className="text-[10px] text-muted-foreground">{label}</p><p className={`mt-1 whitespace-nowrap font-mono-game text-xs font-bold sm:text-sm ${tone === 'good' ? 'text-emerald-500' : tone === 'bad' ? 'text-destructive' : ''}`}>{value}</p></div>;
+const Small = ({ label, value }: { label: string; value: string }) => <div className="rounded-xl bg-muted/50 p-2.5"><p className="text-[10px] text-muted-foreground">{label}</p><p className="mt-1 truncate font-mono-game text-xs font-bold">{value}</p></div>;
+const Row = ({ label, value }: { label: string; value: string }) => <div className="flex items-center justify-between text-xs"><span className="text-muted-foreground">{label}</span><b className="font-mono-game">{value}</b></div>;
 
 export default InvestmentsTab;
