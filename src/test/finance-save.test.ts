@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { calculateFinancialSnapshot } from '@/game/finance';
-import { savedStateTimestamp, serializeState } from '@/game/save';
+import { savedStateTimestamp, selectStartupState, serializeState } from '@/game/save';
 
 describe('financial snapshot', () => {
   it('includes cash and every owned asset category in net worth', () => {
@@ -26,6 +26,13 @@ describe('financial snapshot', () => {
 });
 
 describe('save freshness', () => {
+  it('never replaces a device-local purchase with a cloud snapshot', () => {
+    const local = { savedAt: 10, businesses: [{ id: 'owned-business' }] };
+    const cloud = { savedAt: 999999, businesses: [] };
+    expect(selectStartupState(local, cloud)).toBe(local);
+    expect(selectStartupState(null, cloud)).toBe(cloud);
+  });
+
   it('serializes prices and a comparable timestamp', () => {
     const state = serializeState({
       balance: 1, clickPower: 1, playerXp: 0,

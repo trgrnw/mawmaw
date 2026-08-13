@@ -137,11 +137,13 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         try { localSaved = JSON.parse(local); } catch { /* ignore corrupt local data */ }
       }
 
-      // Never hold the whole game behind the network. Show the local snapshot
-      // immediately while checking whether the cloud has a newer copy.
+      // Local storage is authoritative on a device. Never let an older or
+      // delayed cloud response overwrite purchases already saved here.
       if (localSaved) {
         applyLoadedState(localSaved);
+        cloudLoadOkRef.current = true;
         setLoaded(true);
+        return;
       }
 
       // Guests use a durable local save.
@@ -175,24 +177,14 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error('[GameContext] cloud load failed; using local save', e);
       }
 
-      // Prefer the newest valid copy. A synchronous local save is often newer
-      // than the last cloud request when the page was refreshed quickly.
-      // Re-read local storage because the player may have made a purchase
-      // while the cloud request was still in flight.
-      let latestLocalSaved = localSaved;
-      const latestLocal = localStorage.getItem(localKey);
-      if (latestLocal) {
-        try { latestLocalSaved = JSON.parse(latestLocal); } catch { /* keep the earlier valid snapshot */ }
-      }
-      const saved = savedStateTimestamp(latestLocalSaved) > savedStateTimestamp(cloudSaved)
-        ? latestLocalSaved
-        : (cloudSaved || latestLocalSaved);
-      if (saved) {
-        applyLoadedState(saved);
+      // Cloud is only a bootstrap source on a device without a local save.
+      if (cloudSaved) {
+        applyLoadedState(cloudSaved);
+        localStorage.setItem(localKey, JSON.stringify(cloudSaved));
       }
       // CRITICAL: only enable autosave if we successfully reached the cloud OR have local backup.
       // Otherwise we'd autosave default zeros and wipe the real cloud save.
-      cloudLoadOkRef.current = cloudExistedOrEmpty || !!saved;
+      cloudLoadOkRef.current = cloudExistedOrEmpty || !!cloudSaved;
       setLoaded(true);
     };
     loadState().catch(error => {
