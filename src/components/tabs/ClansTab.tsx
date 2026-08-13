@@ -211,20 +211,25 @@ const ClansTab: React.FC = () => {
   // ─── No clan view ───
   if (!myClan) {
     return (
-      <div className="max-w-5xl mx-auto space-y-6">
-        <div>
-          <h2 className="text-2xl font-bold mb-1 flex items-center gap-2">
-            <Shield className="w-6 h-6" /> Кланы
-          </h2>
-          <p className="text-muted-foreground text-sm">Объединяйтесь с другими игроками, копите казну, поднимайтесь в рейтинге</p>
+      <div className="max-w-6xl space-y-5 pb-8">
+        <div className="relative overflow-hidden rounded-3xl border border-indigo-500/20 bg-card p-5 sm:p-7">
+          <div className="absolute -right-20 -top-24 h-64 w-64 rounded-full bg-indigo-500/10 blur-3xl" />
+          <div className="relative flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-500/15"><Shield className="h-6 w-6 text-indigo-400" /></div>
+              <h2 className="text-2xl font-bold sm:text-3xl">Кланы</h2>
+              <p className="mt-1 max-w-xl text-sm text-muted-foreground">Объединяйтесь с другими игроками, развивайте общую казну и поднимайтесь в мировом рейтинге.</p>
+            </div>
+            <Button onClick={() => setCreateOpen(true)} className="rounded-xl"><Plus className="w-4 h-4 mr-1" />Создать клан · $50,000</Button>
+          </div>
         </div>
 
         {invites.length > 0 && (
-          <Card>
+          <Card className="rounded-3xl border-indigo-500/20 overflow-hidden">
             <CardHeader><CardTitle className="text-base flex items-center gap-2"><UserPlus className="w-4 h-4" /> Приглашения ({invites.length})</CardTitle></CardHeader>
             <CardContent className="space-y-2">
               {invites.map(inv => (
-                <div key={inv.id} className="flex items-center justify-between p-3 rounded-lg border">
+                <div key={inv.id} className="flex items-center justify-between p-4 rounded-2xl border bg-muted/20">
                   <div>
                     <p className="font-medium">{inv.clan?.emoji} [{inv.clan?.tag}] {inv.clan?.name}</p>
                     <p className="text-xs text-muted-foreground">{inv.clan?.member_count} участников</p>
@@ -239,21 +244,17 @@ const ClansTab: React.FC = () => {
           </Card>
         )}
 
-        <div className="flex justify-end">
-          <Button onClick={() => setCreateOpen(true)}><Plus className="w-4 h-4 mr-1" />Создать клан ($50,000)</Button>
-        </div>
-
-        <Card>
-          <CardHeader><CardTitle className="text-base">Топ кланов</CardTitle></CardHeader>
+        <Card className="rounded-3xl overflow-hidden border-border">
+          <CardHeader className="border-b bg-muted/20"><CardTitle className="text-base flex items-center gap-2"><Crown className="h-4 w-4 text-amber-500" />Топ кланов</CardTitle></CardHeader>
           <CardContent className="p-0">
             {allClans.length === 0 ? (
               <p className="p-6 text-center text-muted-foreground">Кланов ещё нет — создайте первый!</p>
             ) : (
               <div className="divide-y">
                 {allClans.map((c, i) => (
-                  <div key={c.id} className="p-3 flex items-center gap-3">
-                    <span className="text-sm font-bold w-6 text-center text-muted-foreground">{i + 1}</span>
-                    <span className="text-2xl">{c.emoji}</span>
+                  <div key={c.id} className="p-4 flex items-center gap-3 transition-colors hover:bg-muted/30">
+                    <span className={`flex h-8 w-8 items-center justify-center rounded-xl text-sm font-bold ${i < 3 ? 'bg-amber-500/15 text-amber-500' : 'bg-muted text-muted-foreground'}`}>{i + 1}</span>
+                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-500/10 text-2xl">{c.emoji}</span>
                     <div className="flex-1 min-w-0">
                       <p className="font-medium truncate">[{c.tag}] {c.name}</p>
                       <p className="text-xs text-muted-foreground">{c.member_count} уч. · {c.owner_name}</p>
@@ -305,13 +306,15 @@ const ClansTab: React.FC = () => {
   };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-4">
+    <div className="max-w-6xl space-y-5 pb-8">
       {/* Header */}
-      <Card>
-        <CardContent className="p-4 flex items-center gap-4 flex-wrap">
-          <span className="text-5xl">{myClan.emoji}</span>
+      <Card className="relative overflow-hidden rounded-3xl border-indigo-500/25 shadow-lg shadow-indigo-500/5">
+        <div className="absolute -right-16 -top-20 h-56 w-56 rounded-full bg-indigo-500/10 blur-3xl" />
+        <CardContent className="relative p-5 sm:p-6 flex items-center gap-4 flex-wrap">
+          <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-500/15 text-4xl">{myClan.emoji}</span>
           <div className="flex-1 min-w-0">
-            <h2 className="text-xl font-bold">[{myClan.tag}] {myClan.name}</h2>
+            <p className="text-[10px] font-bold uppercase tracking-[.2em] text-indigo-400">Клан [{myClan.tag}]</p>
+            <h2 className="mt-1 text-2xl font-bold">{myClan.name}</h2>
             {myClan.description && <p className="text-sm text-muted-foreground">{myClan.description}</p>}
             <div className="flex gap-3 text-xs mt-1 text-muted-foreground">
               <span><Users className="w-3 h-3 inline mr-1" />{myClan.member_count}</span>
@@ -330,23 +333,23 @@ const ClansTab: React.FC = () => {
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="chat">
-        <TabsList>
+      <Tabs defaultValue="chat" className="space-y-3">
+        <TabsList className="h-auto w-full justify-start overflow-x-auto rounded-2xl border bg-card p-1.5">
           <TabsTrigger value="chat"><MessageSquare className="w-4 h-4 mr-1" />Чат</TabsTrigger>
           <TabsTrigger value="members"><Users className="w-4 h-4 mr-1" />Участники ({members.length})</TabsTrigger>
           <TabsTrigger value="treasury"><Coins className="w-4 h-4 mr-1" />История казны</TabsTrigger>
         </TabsList>
 
         <TabsContent value="chat">
-          <Card>
+          <Card className="rounded-3xl overflow-hidden">
             <CardContent className="p-0">
-              <div className="h-[450px] overflow-y-auto p-4 space-y-2">
+              <div className="h-[450px] overflow-y-auto p-5 space-y-3 bg-muted/10">
                 {chat.length === 0 ? (
                   <p className="text-center text-muted-foreground py-10">Сообщений пока нет — будьте первым!</p>
                 ) : (
                   chat.map(m => (
                     <div key={m.id} className={`flex flex-col ${m.user_id === user?.id ? 'items-end' : 'items-start'}`}>
-                      <div className={`max-w-[75%] rounded-2xl px-3 py-2 ${m.user_id === user?.id ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
+                      <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 shadow-sm ${m.user_id === user?.id ? 'bg-primary text-primary-foreground' : 'border bg-card'}`}>
                         <p className="text-xs opacity-70 mb-0.5">{m.username}</p>
                         <p className="text-sm break-words">{m.message}</p>
                       </div>
@@ -371,14 +374,14 @@ const ClansTab: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="members">
-          <Card>
+          <Card className="rounded-3xl overflow-hidden">
             <CardContent className="p-0 divide-y">
               {members.map(m => {
                 const memberRole = roles.find(r => r.id === m.role_id);
                 const isMemberOwner = m.user_id === myClan.owner_id;
                 return (
-                  <div key={m.id} className="p-3 flex items-center gap-3">
-                    <span className="text-2xl">{m.avatar_emoji}</span>
+                  <div key={m.id} className="p-4 flex items-center gap-3 transition-colors hover:bg-muted/30">
+                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-500/10 text-2xl">{m.avatar_emoji}</span>
                     <div className="flex-1 min-w-0">
                       <p className="font-medium truncate flex items-center gap-2">
                         {m.username}
@@ -411,7 +414,7 @@ const ClansTab: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="treasury">
-          <Card>
+          <Card className="rounded-3xl overflow-hidden">
             <CardContent className="p-0 divide-y">
               {treasuryLogs.length === 0 ? (
                 <p className="p-6 text-center text-muted-foreground">Операций пока нет</p>
