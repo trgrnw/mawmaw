@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useRef, useEff
 import { businessCategories } from '@/data/businessNames';
 import { businessMergers } from '@/data/mergerData';
 import { stockAssets, cryptoAssets, generatePriceHistory, nextPriceTick } from '@/data/investmentData';
+import { shopItemsData } from '@/data/shopData';
 import { useAuth } from '@/context/AuthContext';
 import { useCloudSave } from '@/hooks/useCloudSave';
 import { supabase } from '@/integrations/supabase/client';
