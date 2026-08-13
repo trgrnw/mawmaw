@@ -85,13 +85,14 @@ const ShopTab: React.FC = () => {
       </div>
     </header>
 
-    <section className="rounded-2xl border border-border bg-card/80 p-2">
-      <div className="flex gap-2 overflow-x-auto pb-1">
-        {shopCategories.map(item => <button key={item.id} onClick={() => { setCategoryId(item.id); setSelected(null); }} className={`flex min-w-max items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors ${categoryId === item.id ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}><GameIcon name={item.id} size={17} /><span>{td(`d.shopcat.${item.id}`, item.name)}</span></button>)}
+    <section>
+      <div className="mb-3 flex items-end justify-between"><div><h3 className="text-lg font-bold">Категории</h3><p className="text-xs text-muted-foreground">Выберите раздел магазина</p></div><span className="text-xs text-muted-foreground">{shopCategories.length} разделов</span></div>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        {shopCategories.map(item => <button key={item.id} onClick={() => { setCategoryId(item.id); setSelected(null); }} className={`group relative aspect-[16/9] overflow-hidden rounded-2xl border text-left transition-all ${categoryId === item.id ? 'border-cyan-400 ring-2 ring-cyan-400/20' : 'border-border hover:-translate-y-0.5 hover:border-cyan-400/50 hover:shadow-lg'}`}><img src={item.image} alt={item.name} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" /><div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/25 to-transparent" /><div className="absolute inset-x-0 bottom-0 p-3"><p className="text-sm font-bold text-white">{td(`d.shopcat.${item.id}`, item.name)}</p><p className="truncate text-[10px] text-white/60">{td(`d.shopcat.${item.id}.d`, item.description)}</p></div></button>)}
       </div>
     </section>
 
-    <div className={`grid gap-4 ${selected ? 'xl:grid-cols-[1fr_360px]' : ''}`}>
+    <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
       <section className="space-y-4">
         <div className="flex items-center gap-3">
           {category && <img src={category.image} alt="" className="h-12 w-12 rounded-xl object-cover" />}
@@ -118,6 +119,7 @@ const ShopTab: React.FC = () => {
           <div className="space-y-2 border-t border-border pt-4"><Row label={t('shop.total')} value={`$${formatMoney(finalPrice)}`} strong /><Row label={t('shop.balance')} value={`$${formatMoney(balance)}`} /><button onClick={purchase} disabled={buying || balance < finalPrice} className="mt-2 w-full rounded-xl bg-primary px-4 py-3 text-sm font-bold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-40">{buying ? 'Сохраняю в облако…' : balance < finalPrice ? t('biz.insufficient') : t('shop.confirm_buy')}</button></div>
         </div>
       </aside>}
+      {!selected && <aside className="h-fit rounded-3xl border border-cyan-500/20 bg-card p-5 xl:sticky xl:top-4"><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-500/10"><GameIcon name={categoryId} size={24} themed /></div><h3 className="mt-4 text-lg font-bold">{category ? td(`d.shopcat.${category.id}`, category.name) : t('shop.title')}</h3><p className="mt-1 text-sm text-muted-foreground">Выберите товар слева — здесь появятся подробности, настройки и подтверждение покупки.</p><div className="mt-5 space-y-2 border-t border-border pt-4"><Row label={t('shop.balance')} value={`$${formatMoney(balance)}`} /><Row label={t('shop.purchased')} value={`${ownedCount}/${shopItemsData.length}`} /><Row label={t('shop.income')} value={`$${formatMoney(hourlyIncome)}/ч`} /></div></aside>}
     </div>
   </div>;
 };
