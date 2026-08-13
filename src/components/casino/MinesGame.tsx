@@ -109,7 +109,8 @@ const MinesGame: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         if (data.game_over) {
           setBombPositions(data.bomb_positions);
           setGame(prev => prev ? { ...prev, status: 'won' } : null);
-          addBalance(game.bet_amount * data.multiplier);
+          const payout = game.bet_amount * data.multiplier;
+          addBalance(payout, Math.max(0, payout - game.bet_amount));
           const hist = await callCasino('get_mines_history');
           if (hist?.bets) setRecentBets(hist.bets);
         }
@@ -123,7 +124,7 @@ const MinesGame: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     setLoading(true);
     const data = await callCasino('cashout_mines', { game_id: game.id, username: username || 'Player' });
     if (data?.success) {
-      addBalance(data.win_amount);
+      addBalance(data.win_amount, Math.max(0, data.win_amount - game.bet_amount));
       setBombPositions(data.bomb_positions);
       setGame(prev => prev ? { ...prev, status: 'won' } : null);
       const hist = await callCasino('get_mines_history');
