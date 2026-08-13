@@ -11,7 +11,7 @@ import {
   calculateWeightedAveragePrice,
 } from '@/game/investments';
 import { serializeState } from '@/game/save';
-import { defaultUpgrades } from '@/game/upgrades';
+import { defaultUpgrades, upgradeLevels } from '@/game/upgrades';
 import {
   levelFromXp,
   progressionFromXp,
@@ -23,6 +23,16 @@ import {
 const NOW = 1_700_000_000_000;
 
 describe('game economy helpers', () => {
+  it('keeps the click-power level table available while restoring a save', () => {
+    const restoredLevel = 3;
+    const restoredClickPower = 1 + upgradeLevels
+      .slice(0, restoredLevel)
+      .reduce((sum, level) => sum + level.bonus, 0);
+
+    expect(upgradeLevels.length).toBeGreaterThan(restoredLevel);
+    expect(restoredClickPower).toBe(4);
+  });
+
   it('keeps business tax at 23% for 72 hours', () => {
     expect(calculateBusinessTax({ incomePerHour: 1000 })).toBeCloseTo(16_560);
   });
