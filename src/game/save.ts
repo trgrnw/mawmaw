@@ -74,3 +74,8 @@ export function selectStartupState(
 ): Record<string, unknown> | null {
   return localState ?? cloudState;
 }
+
+/** Prevents an autosave from crossing the guest/account identity boundary. */
+export function isSaveKeyReady(readyKey: string | null, currentKey: string): boolean {
+  return readyKey === currentKey;
+}
