@@ -177,9 +177,16 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       // Prefer the newest valid copy. A synchronous local save is often newer
       // than the last cloud request when the page was refreshed quickly.
-      const saved = savedStateTimestamp(localSaved) > savedStateTimestamp(cloudSaved)
-        ? localSaved
-        : (cloudSaved || localSaved);
+      // Re-read local storage because the player may have made a purchase
+      // while the cloud request was still in flight.
+      let latestLocalSaved = localSaved;
+      const latestLocal = localStorage.getItem(localKey);
+      if (latestLocal) {
+        try { latestLocalSaved = JSON.parse(latestLocal); } catch { /* keep the earlier valid snapshot */ }
+      }
+      const saved = savedStateTimestamp(latestLocalSaved) > savedStateTimestamp(cloudSaved)
+        ? latestLocalSaved
+        : (cloudSaved || latestLocalSaved);
       if (saved) {
         applyLoadedState(saved);
       }
@@ -284,15 +291,18 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem(user?.id ? `gameState_${user.id}` : 'gameState_guest', JSON.stringify(state));
     const nw = calculateFinancialSnapshot(s).netWorth;
 
-    if (user?.id) forceSave(state, nw).catch(error => console.error('[GameContext] cloud save failed', error));
+    // Local persistence must never depend on Supabase availability. Cloud
+    // writes are enabled only after a trustworthy cloud/local load.
+    if (user?.id && cloudLoadOkRef.current) {
+      forceSave(state, nw).catch(error => console.error('[GameContext] cloud save failed', error));
+    }
   }, [user?.id, forceSave]);
 
   // Save shortly after every meaningful state change. Local storage is
   // synchronous; cloud writes are serialized by useCloudSave.
   useEffect(() => {
-    if (!loaded || !cloudLoadOkRef.current) return;
-    const timeout = setTimeout(performSave, 250);
-    return () => clearTimeout(timeout);
+    if (!loaded) return;
+    performSave();
   }, [loaded, performSave, balance, clickPower, playerXp, totalEarnedClick,
     totalEarnedBusiness, totalEarnedRent, totalEarnedDividends, totalEarnedTrading,
     totalEarnedCrypto, totalEarnedGems, upgrades, shopItems, accessoryItems,
