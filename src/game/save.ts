@@ -66,3 +66,11 @@ export function savedStateTimestamp(state: Record<string, unknown> | null): numb
   const value = Number(state.savedAt);
   return Number.isFinite(value) && value > 0 ? value : 0;
 }
+
+/** A device-local save is authoritative; cloud is only for first-time restore. */
+export function selectStartupState(
+  localState: Record<string, unknown> | null,
+  cloudState: Record<string, unknown> | null,
+): Record<string, unknown> | null {
+  return localState ?? cloudState;
+}
