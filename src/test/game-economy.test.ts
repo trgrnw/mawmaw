@@ -107,6 +107,8 @@ describe('game economy helpers', () => {
       stockHoldings: [],
       cryptoHoldings: [],
       licensePlates: [],
+      stockPrices: {},
+      cryptoPrices: {},
     });
 
     expect(serialized).toHaveProperty('upgradeLevels');

@@ -18,7 +18,7 @@ import type {
 } from '@/game/types';
 import { defaultAccessories, defaultShopItems } from '@/game/defaults';
 import { defaultUpgrades, upgradeLevels } from '@/game/upgrades';
-import { TAX_PERIOD_MS } from '@/game/constants';
+import { BUSINESS_TAX_RATE, TAX_PERIOD_MS } from '@/game/constants';
 import {
   calculateBusinessRefund,
   calculateTotalTaxDue,
