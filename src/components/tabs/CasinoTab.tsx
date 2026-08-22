@@ -51,13 +51,13 @@ const CasinoTab: React.FC = () => {
   const [view, setView] = useState<CasinoView>('hub');
   const { t } = useI18n();
 
-  if (view === 'rocket') return <RocketGame onBack={() => setView('hub')} />;
-  if (view === 'mines') return <MinesGame onBack={() => setView('hub')} />;
-  if (view === 'coinflip') return <CoinFlipGame onBack={() => setView('hub')} />;
-  if (view === 'wheel') return <DailyWheelGame onBack={() => setView('hub')} />;
+  if (view === 'rocket') return <div className="casino-motion"><RocketGame onBack={() => setView('hub')} /></div>;
+  if (view === 'mines') return <div className="casino-motion"><MinesGame onBack={() => setView('hub')} /></div>;
+  if (view === 'coinflip') return <div className="casino-motion"><CoinFlipGame onBack={() => setView('hub')} /></div>;
+  if (view === 'wheel') return <div className="casino-motion"><DailyWheelGame onBack={() => setView('hub')} /></div>;
 
   return (
-    <div className="space-y-6">
+    <div className="casino-motion space-y-6">
       <div>
         <h2 className="text-2xl font-bold text-foreground flex items-center gap-2">
           <GameIcon name="casino" size={24} themed />
@@ -73,7 +73,7 @@ const CasinoTab: React.FC = () => {
             onClick={() => setView(game.id)}
             className={`group relative overflow-hidden rounded-2xl border ${game.border} bg-gradient-to-br ${game.gradient} ${game.hoverBg} p-8 text-left transition-all duration-300 hover:scale-[1.02] hover:shadow-lg`}
           >
-            <div className="mb-4"><GameIcon name={game.icon} size={56} themed /></div>
+            <div className="casino-game-icon mb-4"><GameIcon name={game.icon} size={56} themed /></div>
             <h3 className="text-xl font-bold text-foreground mb-2">{t(game.i18nKey)}</h3>
             <p className="text-sm text-muted-foreground">{t(game.descKey)}</p>
             <div className="absolute top-4 right-4 text-xs font-mono text-muted-foreground/50">

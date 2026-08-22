@@ -12,9 +12,19 @@ import { Link } from 'react-router-dom';
 const LANGUAGES: { code: Locale; name: string; flag: string }[] = [
   { code: 'ru', name: 'Русский', flag: '🇷🇺' },
   { code: 'en', name: 'English', flag: '🇺🇸' },
-  { code: 'cn', name: '中文', flag: '🇨🇳' },
-  { code: 'pl', name: 'Polski', flag: '🇵🇱' },
+  { code: 'fr', name: 'Français', flag: '🇫🇷' },
+  { code: 'it', name: 'Italiano', flag: '🇮🇹' },
   { code: 'de', name: 'Deutsch', flag: '🇩🇪' },
+  { code: 'es', name: 'Español', flag: '🇪🇸' },
+  { code: 'ja', name: '日本語', flag: '🇯🇵' },
+  { code: 'ko', name: '한국어', flag: '🇰🇷' },
+  { code: 'cn', name: '中文', flag: '🇨🇳' },
+  { code: 'hy', name: 'Հայերեն', flag: '🇦🇲' },
+  { code: 'uk', name: 'Українська', flag: '🇺🇦' },
+  { code: 'pl', name: 'Polski', flag: '🇵🇱' },
+  { code: 'tr', name: 'Türkçe', flag: '🇹🇷' },
+  { code: 'no', name: 'Norsk', flag: '🇳🇴' },
+  { code: 'kk', name: 'Қазақша', flag: '🇰🇿' },
 ];
 
 const SettingsTab: React.FC = () => {
@@ -166,7 +176,8 @@ const SettingsTab: React.FC = () => {
           <Globe className="w-5 h-5 text-foreground" />
           <h3 className="text-sm font-semibold text-foreground">{t('settings.language')}</h3>
         </div>
-        <div className="grid grid-cols-1 gap-2">
+        <p className="text-xs text-muted-foreground">Языковой пакет подготовлен. Полный перевод новых языков будет добавлен отдельным финальным этапом.</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {LANGUAGES.map(lang => (
             <button
               key={lang.code}

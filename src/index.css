@@ -271,3 +271,30 @@ input[type="number"] {
   -moz-appearance: textfield;
   appearance: textfield;
 }
+
+@keyframes casinoIconBounce {
+  0%, 100% { transform: translateY(0) rotate(0); }
+  45% { transform: translateY(-7px) rotate(-4deg); }
+  70% { transform: translateY(-2px) rotate(3deg); }
+}
+
+.casino-motion button:not(:disabled) {
+  transition: transform 160ms ease, filter 160ms ease, box-shadow 220ms ease;
+}
+
+.casino-motion button:not(:disabled):active {
+  transform: scale(0.94);
+  filter: brightness(1.18);
+}
+
+.casino-motion button:hover .casino-game-icon {
+  animation: casinoIconBounce 650ms ease;
+}
+
+.casino-motion [class*="aspect-square"]:not(:disabled):active {
+  transform: scale(0.82) rotate(3deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .casino-motion *, .casino-game-icon { animation: none !important; transition-duration: 0.01ms !important; }
+}
