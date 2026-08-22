@@ -353,7 +353,7 @@ const ProfileTabLegacy: React.FC<{ variant?: 'modern' | 'classic' }> = ({ varian
       {/* Showcase */}
       <div>
         <h3 className="text-sm font-semibold text-foreground mb-3">{t('profile.showcase')}</h3>
-        <div className={`grid grid-cols-2 ${modern ? 'md:grid-cols-4' : 'sm:grid-cols-4'} gap-3`}>
+        <div className={`grid min-w-0 grid-cols-2 ${modern ? 'md:grid-cols-4' : 'sm:grid-cols-4'} gap-3`}>
           {SHOWCASE_CATEGORIES_KEYS.map(cat => {
             const selected = getSelectedShowcase(cat.id);
             const items = getShowcaseItems(cat.id);
@@ -362,13 +362,13 @@ const ProfileTabLegacy: React.FC<{ variant?: 'modern' | 'classic' }> = ({ varian
             const itemData = selected ? [...shopItemsData, ...accessoryItemsData].find(d => d.id === selected.id) : null;
             const carPlate = (cat.id === 'cars' && selected) ? licensePlates.find(p => p.assignedTo === selected.id) : null;
             return (
-              <div key={cat.id} className="relative">
+              <div key={cat.id} className="relative min-w-0">
                 <button
                   onClick={() => items.length > 1 ? setOpenPicker(isOpen ? null : cat.id) : undefined}
-                  className={`w-full bg-card ${modern ? 'rounded-2xl hover:-translate-y-0.5 hover:shadow-lg' : 'rounded-xl'} border overflow-hidden text-center transition-all hover:border-primary/50`}
+                  className={`w-full min-w-0 bg-card ${modern ? 'rounded-2xl hover:-translate-y-0.5 hover:shadow-lg' : 'rounded-xl'} border overflow-hidden text-center transition-all hover:border-primary/50`}
                 >
                   {itemData?.image ? (
-                    <div className="aspect-square relative overflow-hidden">
+                    <div className="relative h-36 overflow-hidden sm:h-40">
                       <img src={itemData.image} alt={selected?.name} className="w-full h-full object-cover" />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
                       {carPlate && (
@@ -378,7 +378,7 @@ const ProfileTabLegacy: React.FC<{ variant?: 'modern' | 'classic' }> = ({ varian
                       )}
                       <div className="absolute bottom-0 left-0 right-0 p-2">
                         <p className="text-[10px] text-white/70">{t(cat.i18n)}</p>
-                        <p className="font-mono-game text-[11px] font-semibold text-white truncate">{selected?.name}</p>
+                        <p className="max-w-full truncate font-mono-game text-[11px] font-semibold text-white">{selected?.name}</p>
                       </div>
                     </div>
                   ) : (
@@ -394,7 +394,7 @@ const ProfileTabLegacy: React.FC<{ variant?: 'modern' | 'classic' }> = ({ varian
                 </button>
 
                 {isOpen && items.length > 1 && (
-                  <div className="absolute z-20 top-full mt-1 left-0 right-0 bg-card border rounded-xl shadow-lg max-h-40 overflow-y-auto">
+                  <div className="absolute z-20 top-full mt-1 left-0 w-full min-w-0 bg-card border rounded-xl shadow-lg max-h-40 overflow-x-hidden overflow-y-auto">
                     {items.map(item => (
                       <button
                         key={item.id}
