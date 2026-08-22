@@ -23,8 +23,9 @@ import AchievementsTab from '@/components/tabs/AchievementsTab';
 import MarketTab from '@/components/tabs/MarketTab';
 import ClansTab from '@/components/tabs/ClansTab';
 import SupportTab from '@/components/tabs/SupportTab';
+import NotificationsTab from '@/components/tabs/NotificationsTab';
 
-type TabId = 'earning' | 'upgrade' | 'business' | 'shop' | 'accessories' | 'investments' | 'casino' | 'market' | 'clans' | 'profile' | 'forbes' | 'achievements' | 'settings' | 'authors' | 'faq' | 'support';
+type TabId = 'earning' | 'upgrade' | 'business' | 'shop' | 'accessories' | 'investments' | 'casino' | 'market' | 'notifications' | 'clans' | 'profile' | 'forbes' | 'achievements' | 'settings' | 'authors' | 'faq' | 'support';
 
 const mainMenuItems: { id: TabId; i18nKey: string; icon: string }[] = [
   { id: 'earning', i18nKey: 'nav.earning', icon: 'earning' },
@@ -35,6 +36,7 @@ const mainMenuItems: { id: TabId; i18nKey: string; icon: string }[] = [
   { id: 'investments', i18nKey: 'nav.investments', icon: 'investments' },
   { id: 'casino', i18nKey: 'nav.casino', icon: 'casino' },
   { id: 'market', i18nKey: 'nav.market', icon: 'market' },
+  { id: 'notifications', i18nKey: 'nav.notifications', icon: 'notifications' },
   { id: 'clans', i18nKey: 'nav.clans', icon: 'users' },
   { id: 'profile', i18nKey: 'nav.profile', icon: 'profile' },
   { id: 'forbes', i18nKey: 'nav.forbes', icon: 'forbes' },
@@ -60,6 +62,7 @@ const tabComponents: Record<TabId, React.FC> = {
   achievements: AchievementsTab,
   casino: CasinoTab,
   market: MarketTab,
+  notifications: NotificationsTab,
   clans: ClansTab,
   support: SupportTab,
   settings: SettingsTab,
@@ -70,6 +73,7 @@ const tabComponents: Record<TabId, React.FC> = {
 const GameLayout: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabId>('earning');
   const [isStaff, setIsStaff] = useState(false);
+  const [notificationCount, setNotificationCount] = useState(0);
   const { balance, playerXp, playerLevel, levelStartXp, nextLevelXp, levelProgress } = useGame();
   const { user, username } = useAuth();
   const { t } = useI18n();
@@ -88,11 +92,36 @@ const GameLayout: React.FC = () => {
   }, [user]);
 
   useEffect(() => {
+    if (!user) {
+      setNotificationCount(0);
+      return;
+    }
+    const loadCount = async () => {
+      const { count } = await supabase
+        .from('clan_invites')
+        .select('id', { count: 'exact', head: true })
+        .eq('invitee_id', user.id)
+        .eq('status', 'pending');
+      setNotificationCount(count || 0);
+    };
+    loadCount();
+    window.addEventListener('notifications-changed', loadCount);
+    const channel = supabase
+      .channel(`layout-notifications-${user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'clan_invites', filter: `invitee_id=eq.${user.id}` }, loadCount)
+      .subscribe();
+    return () => {
+      window.removeEventListener('notifications-changed', loadCount);
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
+
+  useEffect(() => {
     const handler = (e: Event) => {
       const { amount, hours, mins } = (e as CustomEvent).detail || {};
       if (!amount) return;
       const time = hours > 0 ? `${hours}ч ${mins}м` : `${mins}м`;
-      toast.success(`💰 Оффлайн-доход: $${formatMoney(amount)}`, {
+      toast.success(`Оффлайн-доход: $${formatMoney(amount)}`, {
         description: `Начислено за ${time} отсутствия (макс 12ч)`,
         duration: 6000,
       });
@@ -126,6 +155,9 @@ const GameLayout: React.FC = () => {
     >
       <GameIcon name={item.icon} size={18} themed />
       <span>{t(item.i18nKey)}</span>
+      {item.id === 'notifications' && notificationCount > 0 && (
+        <span className="ml-auto min-w-5 rounded-full bg-violet-500 px-1.5 py-0.5 text-center text-[10px] font-bold text-white">{notificationCount > 99 ? '99+' : notificationCount}</span>
+      )}
     </button>
   );
 
