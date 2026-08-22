@@ -620,6 +620,7 @@ const RolesDialog: React.FC<{ open: boolean; onOpenChange: (b: boolean) => void;
 const InviteDialog: React.FC<{ open: boolean; onOpenChange: (b: boolean) => void; onInvited: () => void }> = ({ open, onOpenChange, onInvited }) => {
   const [search, setSearch] = useState('');
   const [results, setResults] = useState<{ user_id: string; username: string; player_id: number; avatar_emoji: string }[]>([]);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!search) { setResults([]); return; }
@@ -635,8 +636,17 @@ const InviteDialog: React.FC<{ open: boolean; onOpenChange: (b: boolean) => void
   }, [search]);
 
   const invite = async (uid: string) => {
+    if (busyId) return;
+    setBusyId(uid);
     const { error } = await supabase.rpc('invite_to_clan', { p_invitee_id: uid });
-    if (error) toast.error(error.message); else { toast.success('Приглашение отправлено'); onInvited(); }
+    setBusyId(null);
+    if (error) toast.error(error.message); else {
+      toast.success('Приглашение отправлено в уведомления игрока');
+      setSearch('');
+      setResults([]);
+      onOpenChange(false);
+      onInvited();
+    }
   };
 
   return (
@@ -648,7 +658,7 @@ const InviteDialog: React.FC<{ open: boolean; onOpenChange: (b: boolean) => void
           {results.map(r => (
             <div key={r.user_id} className="flex items-center justify-between p-2 border rounded">
               <span>{r.avatar_emoji} {r.username} <span className="text-xs text-muted-foreground">#{r.player_id}</span></span>
-              <Button size="sm" onClick={() => invite(r.user_id)}>Пригласить</Button>
+              <Button size="sm" disabled={!!busyId} onClick={() => invite(r.user_id)}>{busyId === r.user_id ? 'Отправка…' : 'Пригласить'}</Button>
             </div>
           ))}
         </div>
