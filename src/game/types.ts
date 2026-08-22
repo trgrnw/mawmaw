@@ -44,6 +44,22 @@ export interface Business {
   taxPaid: boolean;
   taxAmount: number;
   createdAt: number;
+  status?: string;
+  registrationNumber?: string;
+  completedSetupSteps?: string[];
+  employeesHired?: number;
+  employeesRequired?: number;
+  grossRevenuePerHour?: number;
+  salaryCostPerHour?: number;
+  operatingCostPerHour?: number;
+  taxCostPerHour?: number;
+}
+
+export interface EntrepreneurLicense {
+  id: string;
+  country: string;
+  legalForm: string;
+  issuedAt: number;
 }
 
 export interface StockHolding {
@@ -97,6 +113,7 @@ export interface GameState {
   cryptoPrices: PriceData;
   licensePlates: LicensePlateState[];
   realEstateUpgrades: Record<string, string[]>;
+  entrepreneurLicense: EntrepreneurLicense | null;
 }
 
 export interface GameContextType extends GameState {
@@ -108,6 +125,9 @@ export interface GameContextType extends GameState {
   buyAccessory: (id: string) => boolean;
   sellAccessory: (id: string) => boolean;
   openBusiness: (categoryId: string, name: string) => Promise<boolean>;
+  obtainEntrepreneurLicense: (country: string) => boolean;
+  completeBusinessSetupStep: (businessId: string, stepId: string) => boolean;
+  hireBusinessTeam: (businessId: string) => boolean;
   mergeBusiness: (mergerId: string) => boolean;
   deleteBusiness: (id: string) => boolean;
   payTaxes: () => boolean;
