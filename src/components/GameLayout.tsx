@@ -210,7 +210,7 @@ const GameLayout: React.FC = () => {
               className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-yellow-600 dark:text-yellow-400 hover:bg-sidebar-btn-hover"
             >
               <GameIcon name="admin" size={18} themed />
-              <span>Админка</span>
+              <span>Центр управления</span>
             </Link>
           )}
           {!user && (

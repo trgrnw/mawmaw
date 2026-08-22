@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import GameIcon from '@/components/GameIcon';
 import { toast } from 'sonner';
-import { Loader2, Crown, Users, MessageSquare, Coins, Shield, Trash2, LogOut, Plus, UserPlus, Send } from 'lucide-react';
+import { Loader2, Crown, Users, MessageSquare, Coins, Shield, Trash2, LogOut, Plus, UserPlus, Send, History } from 'lucide-react';
 
 interface Clan {
   id: string;
@@ -71,6 +71,13 @@ interface TreasuryLog {
   amount: number;
   created_at: string;
 }
+interface ClanActionLog {
+  id: string;
+  actor_username: string;
+  action: string;
+  details: Record<string, unknown> | null;
+  created_at: string;
+}
 
 const PERM_LABELS: { key: keyof ClanRole; label: string }[] = [
   { key: 'perm_invite', label: 'Приглашать игроков' },
@@ -90,6 +97,7 @@ const ClansTab: React.FC = () => {
   const [roles, setRoles] = useState<ClanRole[]>([]);
   const [chat, setChat] = useState<ChatMsg[]>([]);
   const [treasuryLogs, setTreasuryLogs] = useState<TreasuryLog[]>([]);
+  const [actionLogs, setActionLogs] = useState<ClanActionLog[]>([]);
   const [invites, setInvites] = useState<ClanInvite[]>([]);
   const [allClans, setAllClans] = useState<(Clan & { total_net_worth: number; owner_name: string })[]>([]);
   const [chatMessage, setChatMessage] = useState('');
@@ -98,6 +106,9 @@ const ClansTab: React.FC = () => {
   const [treasuryOpen, setTreasuryOpen] = useState(false);
   const [rolesOpen, setRolesOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
+  const [deleting, setDeleting] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const loadAll = useCallback(async () => {
@@ -138,6 +149,10 @@ const ClansTab: React.FC = () => {
 
       const { data: tlogs } = await supabase.from('clan_treasury_logs').select('*').eq('clan_id', memberData.clan_id).order('created_at', { ascending: false }).limit(50);
       setTreasuryLogs(tlogs || []);
+      if (clanData?.owner_id === user.id) {
+        const { data: alogs } = await supabase.from('clan_action_logs' as any).select('*').eq('clan_id', memberData.clan_id).order('created_at', { ascending: false }).limit(100);
+        setActionLogs((alogs as any[]) || []);
+      } else setActionLogs([]);
     } else {
       setMyMember(null);
       setMyClan(null);
@@ -289,9 +304,11 @@ const ClansTab: React.FC = () => {
   };
 
   const handleDelete = async () => {
-    if (!confirm('Удалить клан? Казна вернётся вам.')) return;
-    const { error } = await supabase.rpc('delete_clan');
-    if (error) toast.error(error.message); else { toast.success('Клан удалён'); loadAll(); }
+    if (deleteConfirmation !== myClan.name || deleting) return;
+    setDeleting(true);
+    const { error } = await supabase.rpc('delete_clan_confirmed' as any, { p_clan_name: deleteConfirmation });
+    setDeleting(false);
+    if (error) toast.error(error.message); else { toast.success('Клан удалён'); setDeleteOpen(false); setDeleteConfirmation(''); loadAll(); }
   };
 
   const handleKick = async (userId: string) => {
@@ -328,7 +345,7 @@ const ClansTab: React.FC = () => {
             {canEdit && <Button size="sm" variant="outline" onClick={() => setEditOpen(true)}>Настройки</Button>}
             {canManageRoles && <Button size="sm" variant="outline" onClick={() => setRolesOpen(true)}><Crown className="w-4 h-4 mr-1" />Роли</Button>}
             {!isOwner && <Button size="sm" variant="ghost" onClick={handleLeave}><LogOut className="w-4 h-4 mr-1" />Выйти</Button>}
-            {isOwner && <Button size="sm" variant="destructive" onClick={handleDelete}><Trash2 className="w-4 h-4 mr-1" />Удалить</Button>}
+            {isOwner && <Button size="sm" variant="destructive" onClick={() => { setDeleteConfirmation(''); setDeleteOpen(true); }}><Trash2 className="w-4 h-4 mr-1" />Удалить</Button>}
           </div>
         </CardContent>
       </Card>
@@ -338,6 +355,7 @@ const ClansTab: React.FC = () => {
           <TabsTrigger value="chat"><MessageSquare className="w-4 h-4 mr-1" />Чат</TabsTrigger>
           <TabsTrigger value="members"><Users className="w-4 h-4 mr-1" />Участники ({members.length})</TabsTrigger>
           <TabsTrigger value="treasury"><Coins className="w-4 h-4 mr-1" />История казны</TabsTrigger>
+          {isOwner && <TabsTrigger value="actions"><History className="w-4 h-4 mr-1" />История действий</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="chat">
@@ -347,15 +365,20 @@ const ClansTab: React.FC = () => {
                 {chat.length === 0 ? (
                   <p className="text-center text-muted-foreground py-10">Сообщений пока нет — будьте первым!</p>
                 ) : (
-                  chat.map(m => (
-                    <div key={m.id} className={`flex flex-col ${m.user_id === user?.id ? 'items-end' : 'items-start'}`}>
+                  chat.map((m, index) => {
+                    const day = new Date(m.created_at).toDateString();
+                    const previousDay = index > 0 ? new Date(chat[index - 1].created_at).toDateString() : null;
+                    return <React.Fragment key={m.id}>
+                    {day !== previousDay && <div className="flex justify-center py-2"><span className="rounded-full border bg-background/80 px-3 py-1 text-[10px] font-medium text-muted-foreground">{new Date(m.created_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}</span></div>}
+                    <div className={`flex flex-col ${m.user_id === user?.id ? 'items-end' : 'items-start'}`}>
                       <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 shadow-sm ${m.user_id === user?.id ? 'bg-primary text-primary-foreground' : 'border bg-card'}`}>
                         <p className="text-xs opacity-70 mb-0.5">{m.username}</p>
                         <p className="text-sm break-words">{m.message}</p>
                       </div>
-                      <span className="text-[10px] text-muted-foreground mt-0.5">{new Date(m.created_at).toLocaleTimeString()}</span>
+                      <span className="text-[10px] text-muted-foreground mt-0.5">{new Date(m.created_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</span>
                     </div>
-                  ))
+                    </React.Fragment>;
+                  })
                 )}
                 <div ref={chatEndRef} />
               </div>
@@ -436,15 +459,41 @@ const ClansTab: React.FC = () => {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {isOwner && <TabsContent value="actions">
+          <Card className="overflow-hidden rounded-3xl"><CardContent className="divide-y p-0">
+            {actionLogs.length === 0 ? <p className="p-8 text-center text-sm text-muted-foreground">Действий пока нет</p> : actionLogs.map(log => <div key={log.id} className="flex items-start justify-between gap-4 p-4">
+              <div><p className="text-sm font-medium">{formatClanAction(log.action)}</p><p className="mt-0.5 text-xs text-muted-foreground">{log.actor_username}</p></div>
+              <time className="whitespace-nowrap text-[11px] text-muted-foreground">{new Date(log.created_at).toLocaleString('ru-RU')}</time>
+            </div>)}
+          </CardContent></Card>
+        </TabsContent>}
       </Tabs>
 
       <EditClanDialog open={editOpen} onOpenChange={setEditOpen} clan={myClan} onUpdated={loadAll} />
       <TreasuryDialog open={treasuryOpen} onOpenChange={setTreasuryOpen} clan={myClan} canWithdraw={!!canTreasuryWithdraw} onDone={loadAll} />
       <RolesDialog open={rolesOpen} onOpenChange={setRolesOpen} roles={roles} onChanged={loadAll} />
       <InviteDialog open={inviteOpen} onOpenChange={setInviteOpen} onInvited={loadAll} />
+      <Dialog open={deleteOpen} onOpenChange={open => { if (!deleting) setDeleteOpen(open); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle className="text-destructive">Удаление клана</DialogTitle><DialogDescription>Это действие нельзя отменить. Казна вернётся владельцу, а участники, роли и чат будут удалены.</DialogDescription></DialogHeader>
+          <div className="space-y-3"><Label htmlFor="delete-clan-name">Для подтверждения напишите название клана: <strong>{myClan.name}</strong></Label><Input id="delete-clan-name" value={deleteConfirmation} onChange={event => setDeleteConfirmation(event.target.value)} autoComplete="off" /></div>
+          <DialogFooter><Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>Отмена</Button><Button variant="destructive" onClick={handleDelete} disabled={deleting || deleteConfirmation !== myClan.name}>{deleting ? 'Удаляю…' : 'Удалить навсегда'}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
+
+const formatClanAction = (action: string) => ({
+  clan_updated: 'Изменены настройки клана',
+  member_joined: 'Игрок вступил в клан',
+  member_left: 'Игрок покинул клан или был исключён',
+  member_role_changed: 'Игроку изменили роль',
+  role_created: 'Создана новая роль',
+  role_updated: 'Изменены настройки роли',
+  role_deleted: 'Роль удалена',
+}[action] || action);
 
 // ─────────── Sub-dialogs ───────────
 

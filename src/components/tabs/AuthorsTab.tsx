@@ -5,9 +5,9 @@ import GameIcon from '@/components/GameIcon';
 
 const socialLinks = [
   { name: 'Telegram', icon: 'telegram', url: 'https://t.me/trgrnw', color: 'hsl(200, 70%, 55%)' },
-  { name: 'VK', icon: 'vk', url: 'https://vk.com/trgrnw', color: 'hsl(215, 60%, 50%)' },
-  { name: 'Steam', icon: 'steam', url: 'https://steamcommunity.com/id/trgrnw', color: 'hsl(210, 20%, 35%)' },
   { name: 'YouTube', icon: 'youtube', url: 'https://youtube.com/@trgrnw', color: 'hsl(0, 70%, 50%)' },
+  { name: 'X (Twitter)', icon: 'twitter', url: 'https://x.com/trgrnw', color: 'hsl(210, 10%, 70%)' },
+  { name: 'Steam', icon: 'steam', url: 'https://store.steampowered.com/search/?developer=trgrnw', color: 'hsl(210, 20%, 55%)' },
 ];
 
 const AuthorsTab: React.FC = () => {
