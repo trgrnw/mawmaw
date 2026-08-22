@@ -41,6 +41,29 @@ const EarningTab: React.FC = () => {
 
       <BankCard />
 
+      <div
+        className="relative click-area-pulse border-2 border-dashed rounded-2xl h-52 flex flex-col items-center justify-center cursor-pointer transition-transform active:scale-[0.98] hover:border-sky-400"
+        onClick={handleClick}
+      >
+        <span className="mb-3 pointer-events-none"><GameIcon name="click" size={48} themed /></span>
+        <p className="text-muted-foreground pointer-events-none text-center px-4">
+          {t('earning.click_area')}
+        </p>
+        <p className="text-xs text-muted-foreground mt-2 font-mono-game pointer-events-none">
+          +${formatMoney(clickPower)} {t('earning.per_click')}
+        </p>
+
+        {coins.map(coin => (
+          <span
+            key={coin.id}
+            className="coin-float absolute text-sm font-bold pointer-events-none"
+            style={{ left: coin.x, top: coin.y, color: 'hsl(var(--success))' }}
+          >
+            +${formatMoney(coin.value)}
+          </span>
+        ))}
+      </div>
+
       {hasPassive && (
         <div className="stat-card rounded-xl p-4 space-y-3">
           <div className="flex items-center gap-3">
@@ -77,28 +100,6 @@ const EarningTab: React.FC = () => {
         </div>
       )}
 
-      <div
-        className="relative click-area-pulse border-2 border-dashed rounded-2xl h-52 flex flex-col items-center justify-center cursor-pointer transition-transform active:scale-[0.98] hover:border-sky-400"
-        onClick={handleClick}
-      >
-        <span className="mb-3 pointer-events-none"><GameIcon name="click" size={48} themed /></span>
-        <p className="text-muted-foreground pointer-events-none text-center px-4">
-          {t('earning.click_area')}
-        </p>
-        <p className="text-xs text-muted-foreground mt-2 font-mono-game pointer-events-none">
-          +${formatMoney(clickPower)} {t('earning.per_click')}
-        </p>
-
-        {coins.map(coin => (
-          <span
-            key={coin.id}
-            className="coin-float absolute text-sm font-bold pointer-events-none"
-            style={{ left: coin.x, top: coin.y, color: 'hsl(var(--success))' }}
-          >
-            +${formatMoney(coin.value)}
-          </span>
-        ))}
-      </div>
     </div>
   );
 };
