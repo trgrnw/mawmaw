@@ -23,6 +23,7 @@ const MAX_USERNAMES = 25;
 const MAX_ACTIVE = 15;
 
 const MISC_CATEGORY = { id: 'misc', name: 'misc', emoji: '📦', description: 'misc_desc', image: '' };
+const PURCHASES_CATEGORY = { id: 'purchases', name: 'Покупки', emoji: '🛍️', description: 'Купленные аксессуары', image: '' };
 
 interface PlayerUsername {
   id: string;
@@ -31,7 +32,7 @@ interface PlayerUsername {
 }
 
 const AccessoriesTab: React.FC = () => {
-  const { accessoryItems, buyAccessory, balance, spendBalance, addBalance, shopItems, licensePlates, addLicensePlate, assignPlate, removePlate } = useGame();
+  const { accessoryItems, buyAccessory, sellAccessory, balance, spendBalance, addBalance, shopItems, licensePlates, addLicensePlate, assignPlate, removePlate } = useGame();
   const { user } = useAuth();
   const { t, td } = useI18n();
   const [view, setView] = useState<View>('categories');
@@ -311,9 +312,11 @@ const AccessoriesTab: React.FC = () => {
     setAssignDialogOpen(true);
   };
 
-  const catItems = selectedCategory ? accessoryItemsData.filter(i => i.categoryId === selectedCategory) : [];
-  const catInfo = [...accessoryCategories, MISC_CATEGORY].find(c => c.id === selectedCategory);
-  const allCategories = [...accessoryCategories, MISC_CATEGORY];
+  const catItems = selectedCategory === 'purchases'
+    ? accessoryItemsData.filter(i => i.categoryId !== 'misc' && isPurchased(i.id))
+    : selectedCategory ? accessoryItemsData.filter(i => i.categoryId === selectedCategory && !isPurchased(i.id)) : [];
+  const catInfo = [...accessoryCategories, MISC_CATEGORY, PURCHASES_CATEGORY].find(c => c.id === selectedCategory);
+  const allCategories = [...accessoryCategories, MISC_CATEGORY, PURCHASES_CATEGORY];
 
   return (
     <div className="max-w-6xl space-y-5 pb-8">
@@ -342,7 +345,7 @@ const AccessoriesTab: React.FC = () => {
                 </div>
               ) : (
                 <div className="aspect-[16/10] flex flex-col items-center justify-center p-4 bg-gradient-to-br from-fuchsia-500/10 to-transparent">
-                   <GameIcon name={cat.id} size={48} themed />
+                   <GameIcon name={cat.id === 'purchases' ? 'shop' : cat.id} size={48} themed />
                    <span className="font-semibold text-foreground text-sm mt-2">{cat.id === 'misc' ? t('acc.misc') : cat.name}</span>
                    <span className="text-xs text-muted-foreground">{cat.id === 'misc' ? t('acc.misc_desc') : cat.description}</span>
                 </div>
@@ -456,18 +459,19 @@ const AccessoriesTab: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
             {catItems.map(item => {
               const purchased = isPurchased(item.id);
+              const purchasesView = selectedCategory === 'purchases';
               return (
-                <button key={item.id} disabled={purchased} onClick={() => !purchased && openItemDialog(item)}
-                  className={`rounded-3xl overflow-hidden border text-left transition-all group ${purchased ? 'bg-muted/50 border-emerald-500/20 opacity-70 cursor-default' : 'bg-card border-border hover:-translate-y-0.5 hover:border-fuchsia-400/50 hover:shadow-xl cursor-pointer'}`}
+                <div key={item.id} onClick={() => !purchasesView && openItemDialog(item)}
+                  className={`rounded-3xl overflow-hidden border text-left transition-all group ${purchasesView ? 'bg-card border-emerald-500/20' : 'bg-card border-border hover:-translate-y-0.5 hover:border-fuchsia-400/50 hover:shadow-xl cursor-pointer'}`}
                 >
                   <div className="aspect-[4/3] relative overflow-hidden">
                     <img src={item.image} alt={item.name} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" loading="lazy" />
-                    {purchased && (
+                    {purchasesView && (
                       <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
                         <span className="text-white font-bold text-sm bg-green-500/80 px-3 py-1 rounded-full">{t('acc.purchased')}</span>
                       </div>
                     )}
-                    {!purchased && (
+                    {!purchasesView && (
                       <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-sm rounded-full px-2.5 py-1">
                         <span className="font-mono-game text-xs text-white">${formatMoney(item.basePrice)}</span>
                       </div>
@@ -476,10 +480,12 @@ const AccessoriesTab: React.FC = () => {
                   <div className="p-3">
                     <p className="font-semibold text-foreground text-sm">{td('d.accitem.' + item.id, item.name)}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">{td('d.accitem.' + item.id + '.d', item.description)}</p>
+                    {purchasesView && <button onClick={event => { event.stopPropagation(); if (window.confirm(`Продать ${item.name} за 25% стоимости?`)) { sellAccessory(item.id); toast.success('Аксессуар продан'); } }} className="mt-3 w-full rounded-xl bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-500">Продать за ${formatMoney((accessoryItems.find(i => i.id === item.id)?.price ?? item.basePrice) * .25)}</button>}
                   </div>
-                </button>
+                </div>
               );
             })}
+            {catItems.length === 0 && <div className="col-span-full rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground">{selectedCategory === 'purchases' ? 'Покупок пока нет' : 'Все товары этой категории уже куплены'}</div>}
           </div>
         </>
       )}

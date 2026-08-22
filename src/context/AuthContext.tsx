@@ -100,6 +100,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         emailRedirectTo: new URL(import.meta.env.BASE_URL, window.location.origin).toString(),
       },
     });
+    if (!error && localStorage.getItem('gameState_guest')) {
+      localStorage.setItem('pendingGuestProgressMigration', '1');
+    }
     return { error: error?.message ?? null };
   };
 

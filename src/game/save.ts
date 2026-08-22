@@ -51,7 +51,7 @@ export function serializeState(state: SerializableGameState): Record<string, unk
       .map(item => ({ id: item.id, price: item.price })),
     purchasedAccessories: state.accessoryItems
       .filter(item => item.purchased)
-      .map(item => item.id),
+      .map(item => ({ id: item.id, price: item.price })),
     businesses: state.businesses,
     stockHoldings: state.stockHoldings,
     cryptoHoldings: state.cryptoHoldings,

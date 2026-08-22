@@ -31,7 +31,9 @@ export const BANNERS = [
   { id: 'rose',     label: 'Роза',      css: 'linear-gradient(135deg, #f43f5e, #ec4899, #d946ef)' },
 ];
 
-export const getBannerCss = (id: string) => BANNERS.find(b => b.id === id)?.css || BANNERS[0].css;
+export const getBannerCss = (id: string) => /^https?:\/\//.test(id)
+  ? `url("${id.replace(/"/g, '%22')}") center / cover no-repeat`
+  : BANNERS.find(b => b.id === id)?.css || BANNERS[0].css;
 export const getFrameClass = (id: string) => FRAMES.find(f => f.id === id)?.className || '';
 
 interface CustomizationData {
@@ -54,6 +56,11 @@ const ProfileCustomization: React.FC<Props> = ({ open, onClose, current, onSaved
   const [status, setStatus] = useState(current.status_text || '');
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [bannerSource, setBannerSource] = useState<string | null>(null);
+  const [bannerFileType, setBannerFileType] = useState('image/jpeg');
+  const [bannerZoom, setBannerZoom] = useState(1);
+  const [bannerX, setBannerX] = useState(50);
+  const [bannerY, setBannerY] = useState(50);
 
   useEffect(() => {
     if (open) {
@@ -117,7 +124,7 @@ const ProfileCustomization: React.FC<Props> = ({ open, onClose, current, onSaved
 
   const handleSave = async () => {
     if (!user) return;
-    if (status.length > 100) { toast.error('Статус слишком длинный (макс 100 символов)'); return; }
+    if (status.length > 360) { toast.error('Описание слишком длинное (макс. 360 символов)'); return; }
     setSaving(true);
     try {
       const { error } = await supabase.rpc('update_profile_customization', {
@@ -134,6 +141,50 @@ const ProfileCustomization: React.FC<Props> = ({ open, onClose, current, onSaved
     } finally {
       setSaving(false);
     }
+  };
+
+  const selectBannerFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!['image/jpeg', 'image/png'].includes(file.type)) {
+      toast.error('Для баннера допустимы только PNG, JPG или JPEG');
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) { toast.error('Баннер не должен превышать 8 МБ'); return; }
+    setBannerFileType(file.type);
+    setBannerSource(URL.createObjectURL(file));
+    setBannerZoom(1); setBannerX(50); setBannerY(50);
+  };
+
+  const saveCroppedBanner = async () => {
+    if (!user || !bannerSource) return;
+    setUploading(true);
+    try {
+      const image = new Image();
+      image.src = bannerSource;
+      await image.decode();
+      const canvas = document.createElement('canvas');
+      canvas.width = 1500; canvas.height = 500;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('Браузер не поддерживает обработку изображения');
+      const cover = Math.max(canvas.width / image.width, canvas.height / image.height) * bannerZoom;
+      const width = image.width * cover; const height = image.height * cover;
+      const overflowX = Math.max(0, width - canvas.width); const overflowY = Math.max(0, height - canvas.height);
+      ctx.drawImage(image, -overflowX * bannerX / 100, -overflowY * bannerY / 100, width, height);
+      const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, bannerFileType, 0.92));
+      if (!blob) throw new Error('Не удалось подготовить баннер');
+      const ext = bannerFileType === 'image/png' ? 'png' : 'jpg';
+      const path = `${user.id}/banner-${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from('profile-banners').upload(path, blob, { contentType: bannerFileType, upsert: true });
+      if (error) throw error;
+      const { data } = supabase.storage.from('profile-banners').getPublicUrl(path);
+      setBanner(data.publicUrl);
+      URL.revokeObjectURL(bannerSource);
+      setBannerSource(null);
+      toast.success('Баннер подготовлен. Нажмите «Сохранить».');
+    } catch (error: any) { toast.error(error.message || 'Ошибка загрузки баннера'); }
+    finally { setUploading(false); }
   };
 
   const renderAvatar = (frameClass: string, size = 'w-16 h-16', text = 'text-3xl') => (
@@ -188,19 +239,33 @@ const ProfileCustomization: React.FC<Props> = ({ open, onClose, current, onSaved
 
         {/* Status */}
         <div className="space-y-2">
-          <label className="text-sm font-medium">Статус ({status.length}/100)</label>
-          <input
-            type="text"
+          <label className="text-sm font-medium">Описание ({status.length}/360)</label>
+          <textarea
             value={status}
-            onChange={e => setStatus(e.target.value.slice(0, 100))}
+            onChange={e => setStatus(e.target.value.slice(0, 360))}
             placeholder="Например: Стремлюсь к миллиарду 💰"
-            className="w-full px-3 py-2 rounded-xl border bg-background text-sm"
+            rows={4}
+            className="w-full resize-none px-3 py-2 rounded-xl border bg-background text-sm"
           />
         </div>
 
         {/* Banners */}
         <div className="space-y-2">
           <label className="text-sm font-medium">Баннер</label>
+          <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-muted/20 p-3">
+            <label className="cursor-pointer rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground">
+              Загрузить свой баннер
+              <input type="file" accept="image/png,image/jpeg,.jpg,.jpeg" className="hidden" onChange={selectBannerFile} />
+            </label>
+            <span className="text-[11px] text-muted-foreground">Рекомендуемый размер: 1500×500 px (3:1), PNG/JPG/JPEG, до 8 МБ</span>
+          </div>
+          {bannerSource && <div className="space-y-3 rounded-xl border p-3">
+            <p className="text-xs font-semibold">Подкорректируйте изображение под формат 1500×500</p>
+            <div className="aspect-[3/1] overflow-hidden rounded-lg bg-muted" style={{ backgroundImage: `url("${bannerSource}")`, backgroundSize: `${bannerZoom * 100}% auto`, backgroundPosition: `${bannerX}% ${bannerY}%`, backgroundRepeat: 'no-repeat' }} />
+            <label className="block text-[11px]">Масштаб <input className="w-full" type="range" min="1" max="3" step="0.05" value={bannerZoom} onChange={e => setBannerZoom(Number(e.target.value))} /></label>
+            <div className="grid grid-cols-2 gap-2"><label className="text-[11px]">По горизонтали <input className="w-full" type="range" min="0" max="100" value={bannerX} onChange={e => setBannerX(Number(e.target.value))} /></label><label className="text-[11px]">По вертикали <input className="w-full" type="range" min="0" max="100" value={bannerY} onChange={e => setBannerY(Number(e.target.value))} /></label></div>
+            <button onClick={saveCroppedBanner} disabled={uploading} className="rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground disabled:opacity-50">{uploading ? 'Обрабатываю…' : 'Применить кадрирование'}</button>
+          </div>}
           <div className="grid grid-cols-3 gap-2">
             {BANNERS.map(b => (
               <button

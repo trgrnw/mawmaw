@@ -102,8 +102,10 @@ export interface GameContextType extends GameState {
   click: () => void;
   buyUpgrade: (id: string) => boolean;
   buyShopItem: (id: string, customPrice?: number) => boolean;
+  sellShopItem: (id: string) => boolean;
   syncProgress: () => Promise<void>;
   buyAccessory: (id: string) => boolean;
+  sellAccessory: (id: string) => boolean;
   openBusiness: (categoryId: string, name: string) => Promise<boolean>;
   mergeBusiness: (mergerId: string) => boolean;
   deleteBusiness: (id: string) => boolean;
