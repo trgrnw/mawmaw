@@ -43,6 +43,7 @@ import GameIcon from '@/components/GameIcon';
 import { sharedMarketPrices } from '@/game/marketEngine';
 import { REAL_ESTATE_UPGRADES } from '@/game/realEstate';
 import { calculateBusinessNet, createLicense, getBusinessPlan, migrateBusiness, ENTREPRENEUR_LICENSE_COST } from '@/game/businessLifecycle';
+import { BANK_CARD_DESIGNS, DEFAULT_BANK_CARD_STATE, normalizeBankCardState, type BankCardState } from '@/game/bankCards';
 
 export { formatMoney };
 
@@ -94,6 +95,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [licensePlates, setLicensePlates] = useState<LicensePlateState[]>([]);
   const [realEstateUpgrades, setRealEstateUpgrades] = useState<Record<string, string[]>>({});
   const [entrepreneurLicense, setEntrepreneurLicense] = useState<EntrepreneurLicense | null>(null);
+  const [bankCard, setBankCard] = useState<BankCardState>(DEFAULT_BANK_CARD_STATE);
 
   // ── Reset state to defaults ──
   function resetToDefaults() {
@@ -117,6 +119,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLicensePlates([]);
     setRealEstateUpgrades({});
     setEntrepreneurLicense(null);
+    setBankCard(DEFAULT_BANK_CARD_STATE);
   }
 
   const prevUserId = useRef<string | null | undefined>(undefined);
@@ -282,6 +285,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     if (saved.realEstateUpgrades && typeof saved.realEstateUpgrades === 'object') setRealEstateUpgrades(saved.realEstateUpgrades as Record<string, string[]>);
     if (saved.entrepreneurLicense && typeof saved.entrepreneurLicense === 'object') setEntrepreneurLicense(saved.entrepreneurLicense as EntrepreneurLicense);
+    setBankCard(normalizeBankCardState(saved.bankCard, progressionFromXp(Number(saved.playerXp) || 0).level));
   }
 
   // ── Refs for latest state (used by interval-based save) ──
@@ -289,13 +293,13 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     balance, clickPower, playerXp, totalEarnedClick, totalEarnedBusiness, totalEarnedRent,
     totalEarnedDividends, totalEarnedTrading, totalEarnedCrypto, totalEarnedGems,
     upgrades, shopItems, accessoryItems, businesses, stockHoldings, cryptoHoldings,
-    stockPrices, cryptoPrices, licensePlates, realEstateUpgrades, entrepreneurLicense,
+    stockPrices, cryptoPrices, licensePlates, realEstateUpgrades, entrepreneurLicense, bankCard,
   });
   latestState.current = {
     balance, clickPower, playerXp, totalEarnedClick, totalEarnedBusiness, totalEarnedRent,
     totalEarnedDividends, totalEarnedTrading, totalEarnedCrypto, totalEarnedGems,
     upgrades, shopItems, accessoryItems, businesses, stockHoldings, cryptoHoldings,
-    stockPrices, cryptoPrices, licensePlates, realEstateUpgrades, entrepreneurLicense,
+    stockPrices, cryptoPrices, licensePlates, realEstateUpgrades, entrepreneurLicense, bankCard,
   };
 
   const persistImmediate = useCallback((overrides: Partial<typeof latestState.current>) => {
@@ -309,7 +313,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       totalEarnedGems: s.totalEarnedGems,
       upgrades: s.upgrades, shopItems: s.shopItems, accessoryItems: s.accessoryItems,
       businesses: s.businesses, stockHoldings: s.stockHoldings, cryptoHoldings: s.cryptoHoldings,
-      licensePlates: s.licensePlates, stockPrices: s.stockPrices, cryptoPrices: s.cryptoPrices, realEstateUpgrades: s.realEstateUpgrades, entrepreneurLicense: s.entrepreneurLicense,
+      licensePlates: s.licensePlates, stockPrices: s.stockPrices, cryptoPrices: s.cryptoPrices, realEstateUpgrades: s.realEstateUpgrades, entrepreneurLicense: s.entrepreneurLicense, bankCard: s.bankCard,
     });
     localStorage.setItem(saveKey, JSON.stringify(state));
     latestState.current = s;
@@ -337,7 +341,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       totalEarnedGems: s.totalEarnedGems,
       upgrades: s.upgrades, shopItems: s.shopItems, accessoryItems: s.accessoryItems,
       businesses: s.businesses, stockHoldings: s.stockHoldings, cryptoHoldings: s.cryptoHoldings,
-      licensePlates: s.licensePlates, stockPrices: s.stockPrices, cryptoPrices: s.cryptoPrices, realEstateUpgrades: s.realEstateUpgrades, entrepreneurLicense: s.entrepreneurLicense,
+      licensePlates: s.licensePlates, stockPrices: s.stockPrices, cryptoPrices: s.cryptoPrices, realEstateUpgrades: s.realEstateUpgrades, entrepreneurLicense: s.entrepreneurLicense, bankCard: s.bankCard,
     });
 
     localStorage.setItem(saveKey, JSON.stringify(state));
@@ -361,7 +365,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       totalEarnedGems: s.totalEarnedGems,
       upgrades: s.upgrades, shopItems: s.shopItems, accessoryItems: s.accessoryItems,
       businesses: s.businesses, stockHoldings: s.stockHoldings, cryptoHoldings: s.cryptoHoldings,
-      licensePlates: s.licensePlates, stockPrices: s.stockPrices, cryptoPrices: s.cryptoPrices, realEstateUpgrades: s.realEstateUpgrades, entrepreneurLicense: s.entrepreneurLicense,
+      licensePlates: s.licensePlates, stockPrices: s.stockPrices, cryptoPrices: s.cryptoPrices, realEstateUpgrades: s.realEstateUpgrades, entrepreneurLicense: s.entrepreneurLicense, bankCard: s.bankCard,
     });
     localStorage.setItem(saveKey, JSON.stringify(state));
     await forceSaveNow(state, calculateFinancialSnapshot(s).netWorth);
@@ -375,7 +379,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [loaded, performSave, balance, clickPower, playerXp, totalEarnedClick,
     totalEarnedBusiness, totalEarnedRent, totalEarnedDividends, totalEarnedTrading,
     totalEarnedCrypto, totalEarnedGems, upgrades, shopItems, accessoryItems,
-    businesses, stockHoldings, cryptoHoldings, licensePlates, stockPrices, cryptoPrices, realEstateUpgrades, entrepreneurLicense]);
+    businesses, stockHoldings, cryptoHoldings, licensePlates, stockPrices, cryptoPrices, realEstateUpgrades, entrepreneurLicense, bankCard]);
 
   // Save on beforeunload
   useEffect(() => {
@@ -938,6 +942,36 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLicensePlates(prev => prev.filter(p => p.id !== plateId));
   }, []);
 
+  const buyBankCard = useCallback((cardId: string): boolean => {
+    const design = BANK_CARD_DESIGNS.find(card => card.id === cardId);
+    if (!design || design.unlockLevel || bankCard.ownedIds.includes(cardId) || balance < design.price) return false;
+    const nextBalance = balance - design.price;
+    const nextCard = { ...bankCard, ownedIds: [...bankCard.ownedIds, cardId], activeId: cardId };
+    persistImmediate({ balance: nextBalance, bankCard: nextCard });
+    setBalance(nextBalance);
+    setBankCard(nextCard);
+    return true;
+  }, [bankCard, balance, persistImmediate]);
+
+  const selectBankCard = useCallback((cardId: string): boolean => {
+    const rewarded = BANK_CARD_DESIGNS.find(card => card.id === cardId)?.unlockLevel;
+    const unlockedByLevel = rewarded !== undefined && progressionFromXp(playerXp).level >= rewarded;
+    if (!bankCard.ownedIds.includes(cardId) && !unlockedByLevel) return false;
+    const nextCard = { ...bankCard, ownedIds: unlockedByLevel ? Array.from(new Set([...bankCard.ownedIds, cardId])) : bankCard.ownedIds, activeId: cardId };
+    persistImmediate({ bankCard: nextCard });
+    setBankCard(nextCard);
+    return true;
+  }, [bankCard, playerXp, persistImmediate]);
+
+  const customizeBankCard = useCallback((details: { customNumber: string; customColor: string | null; expiresAt: string }): boolean => {
+    if (!/^\d{4}$/.test(details.customNumber) || !/^(0[1-9]|1[0-2])\/\d{2}$/.test(details.expiresAt)) return false;
+    if (details.customColor && !/^#[0-9a-f]{6}$/i.test(details.customColor)) return false;
+    const nextCard = { ...bankCard, ...details };
+    persistImmediate({ bankCard: nextCard });
+    setBankCard(nextCard);
+    return true;
+  }, [bankCard, persistImmediate]);
+
   const netWorth = calculateFinancialSnapshot({ balance, shopItems, accessoryItems, businesses, stockHoldings, cryptoHoldings, stockPrices, cryptoPrices }).netWorth;
   const progression = progressionFromXp(playerXp);
 
@@ -951,10 +985,10 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       hourlyIncome, hourlyIncomeBusiness, hourlyIncomeRent, hourlyIncomeDividends,
       totalEarnedClick, totalEarnedBusiness, totalEarnedRent, totalEarnedDividends, totalEarnedTrading, totalEarnedCrypto, totalEarnedGems,
       upgrades, shopItems, accessoryItems, businesses, passiveIncome, netWorth, totalTaxDue,
-      stockHoldings, cryptoHoldings, stockPrices, cryptoPrices, licensePlates, realEstateUpgrades, entrepreneurLicense,
+      stockHoldings, cryptoHoldings, stockPrices, cryptoPrices, licensePlates, realEstateUpgrades, entrepreneurLicense, bankCard,
       click, buyUpgrade, buyShopItem, sellShopItem, syncProgress, buyAccessory, sellAccessory, openBusiness, obtainEntrepreneurLicense, completeBusinessSetupStep, hireBusinessTeam, mergeBusiness, deleteBusiness, payTaxes,
       buyStock, sellStock, buyCrypto, sellCrypto, buyRealEstateUpgrade, spendBalance, addBalance, replaceBalance, addExperience,
-      addLicensePlate, assignPlate, removePlate, formatMoney,
+      addLicensePlate, assignPlate, removePlate, buyBankCard, selectBankCard, customizeBankCard, formatMoney,
     }}>
       {children}
     </GameContext.Provider>

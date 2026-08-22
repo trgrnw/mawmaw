@@ -114,6 +114,7 @@ export interface GameState {
   licensePlates: LicensePlateState[];
   realEstateUpgrades: Record<string, string[]>;
   entrepreneurLicense: EntrepreneurLicense | null;
+  bankCard: import('./bankCards').BankCardState;
 }
 
 export interface GameContextType extends GameState {
@@ -143,5 +144,8 @@ export interface GameContextType extends GameState {
   addLicensePlate: (plate: LicensePlateState) => void;
   assignPlate: (plateId: string, carId: string | null) => void;
   removePlate: (plateId: string) => void;
+  buyBankCard: (cardId: string) => boolean;
+  selectBankCard: (cardId: string) => boolean;
+  customizeBankCard: (details: { customNumber: string; customColor: string | null; expiresAt: string }) => boolean;
   formatMoney: (n: number) => string;
 }

@@ -20,7 +20,8 @@ export const useI18n = () => {
 
 export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [locale, setLocaleState] = useState<Locale>(() => {
-    return (localStorage.getItem('language') as Locale) || 'ru';
+    const saved = localStorage.getItem('language') as Locale | null;
+    return saved && ['ru','en','fr','it','de','es','ja','ko','cn','hy','uk','pl','tr','no','kk'].includes(saved) ? saved : 'ru';
   });
 
   const setLocale = useCallback((l: Locale) => {

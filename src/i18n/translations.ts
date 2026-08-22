@@ -1,6 +1,6 @@
-export type Locale = 'ru' | 'en' | 'cn' | 'pl' | 'de';
+export type Locale = 'ru' | 'en' | 'fr' | 'it' | 'de' | 'es' | 'ja' | 'ko' | 'cn' | 'hy' | 'uk' | 'pl' | 'tr' | 'no' | 'kk';
 
-export const translations: Record<Locale, Record<string, string>> = {
+export const translations: Partial<Record<Locale, Record<string, string>>> & Pick<Record<Locale, Record<string, string>>, 'ru'> = {
   ru: {
     // Nav
     'nav.earning': 'Заработок',

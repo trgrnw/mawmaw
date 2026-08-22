@@ -7,6 +7,7 @@ import type {
   StockHolding,
   Upgrade,
 } from './types';
+import type { BankCardState } from './bankCards';
 
 export interface SerializableGameState {
   balance: number;
@@ -30,6 +31,7 @@ export interface SerializableGameState {
   cryptoPrices: Record<string, { current: number; history: number[] }>;
   realEstateUpgrades?: Record<string, string[]>;
   entrepreneurLicense?: EntrepreneurLicense | null;
+  bankCard?: BankCardState;
 }
 
 export function serializeState(state: SerializableGameState): Record<string, unknown> {
@@ -63,6 +65,7 @@ export function serializeState(state: SerializableGameState): Record<string, unk
     cryptoPrices: state.cryptoPrices,
     realEstateUpgrades: state.realEstateUpgrades ?? {},
     entrepreneurLicense: state.entrepreneurLicense ?? null,
+    bankCard: state.bankCard,
   };
 }
 
