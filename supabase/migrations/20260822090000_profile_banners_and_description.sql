@@ -23,7 +23,7 @@ CREATE POLICY "Players delete own profile banners" ON storage.objects FOR DELETE
 USING (bucket_id = 'profile-banners' AND auth.uid()::text = (storage.foldername(name))[1]);
 
 CREATE OR REPLACE FUNCTION public.update_profile_customization(p_banner text, p_frame text, p_status text)
-RETURNS void
+RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
@@ -36,6 +36,7 @@ BEGIN
       frame_id = nullif(trim(p_frame), ''),
       status_text = nullif(trim(p_status), '')
   WHERE user_id = auth.uid();
+  RETURN jsonb_build_object('success', true);
 END;
 $$;
 
