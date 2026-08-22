@@ -96,6 +96,7 @@ export interface GameState {
   stockPrices: PriceData;
   cryptoPrices: PriceData;
   licensePlates: LicensePlateState[];
+  realEstateUpgrades: Record<string, string[]>;
 }
 
 export interface GameContextType extends GameState {
@@ -114,6 +115,7 @@ export interface GameContextType extends GameState {
   sellStock: (assetId: string, quantity: number) => boolean;
   buyCrypto: (assetId: string, amount: number) => boolean;
   sellCrypto: (assetId: string, amount: number) => boolean;
+  buyRealEstateUpgrade: (itemId: string, upgradeId: string) => boolean;
   spendBalance: (amount: number) => boolean;
   addBalance: (amount: number, earnedAmount?: number) => void;
   replaceBalance: (amount: number) => void;
