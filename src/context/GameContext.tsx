@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
 import { businessCategories } from '@/data/businessNames';
 import { businessMergers } from '@/data/mergerData';
-import { stockAssets, cryptoAssets, generatePriceHistory, nextPriceTick } from '@/data/investmentData';
+import { stockAssets, cryptoAssets } from '@/data/investmentData';
 import { shopItemsData } from '@/data/shopData';
 import { useAuth } from '@/context/AuthContext';
 import { useCloudSave } from '@/hooks/useCloudSave';
@@ -39,22 +39,14 @@ import {
   XP_PER_CLICK,
 } from '@/game/progression';
 import GameIcon from '@/components/GameIcon';
+import { sharedMarketPrices } from '@/game/marketEngine';
+import { REAL_ESTATE_UPGRADES } from '@/game/realEstate';
 
 export { formatMoney };
 
 // Initialize prices
 function initPrices(): { stocks: PriceData; crypto: PriceData } {
-  const stocks: PriceData = {};
-  stockAssets.forEach(a => {
-    const history = generatePriceHistory(a.basePrice, a.volatility, 30);
-    stocks[a.id] = { current: history[history.length - 1], history };
-  });
-  const crypto: PriceData = {};
-  cryptoAssets.forEach(a => {
-    const history = generatePriceHistory(a.basePrice, a.volatility, 30);
-    crypto[a.id] = { current: history[history.length - 1], history };
-  });
-  return { stocks, crypto };
+  return sharedMarketPrices(stockAssets, cryptoAssets);
 }
 
 const initialPrices = initPrices();
@@ -98,6 +90,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [stockPrices, setStockPrices] = useState<PriceData>(initialPrices.stocks);
   const [cryptoPrices, setCryptoPrices] = useState<PriceData>(initialPrices.crypto);
   const [licensePlates, setLicensePlates] = useState<LicensePlateState[]>([]);
+  const [realEstateUpgrades, setRealEstateUpgrades] = useState<Record<string, string[]>>({});
 
   // ── Reset state to defaults ──
   function resetToDefaults() {
@@ -119,6 +112,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setStockHoldings([]);
     setCryptoHoldings([]);
     setLicensePlates([]);
+    setRealEstateUpgrades({});
   }
 
   const prevUserId = useRef<string | null | undefined>(undefined);
@@ -282,8 +276,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (Array.isArray(saved.licensePlates)) {
       setLicensePlates(saved.licensePlates as LicensePlateState[]);
     }
-    if (saved.stockPrices && typeof saved.stockPrices === 'object') setStockPrices(saved.stockPrices as PriceData);
-    if (saved.cryptoPrices && typeof saved.cryptoPrices === 'object') setCryptoPrices(saved.cryptoPrices as PriceData);
+    if (saved.realEstateUpgrades && typeof saved.realEstateUpgrades === 'object') setRealEstateUpgrades(saved.realEstateUpgrades as Record<string, string[]>);
   }
 
   // ── Refs for latest state (used by interval-based save) ──
@@ -291,13 +284,13 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     balance, clickPower, playerXp, totalEarnedClick, totalEarnedBusiness, totalEarnedRent,
     totalEarnedDividends, totalEarnedTrading, totalEarnedCrypto, totalEarnedGems,
     upgrades, shopItems, accessoryItems, businesses, stockHoldings, cryptoHoldings,
-    stockPrices, cryptoPrices, licensePlates,
+    stockPrices, cryptoPrices, licensePlates, realEstateUpgrades,
   });
   latestState.current = {
     balance, clickPower, playerXp, totalEarnedClick, totalEarnedBusiness, totalEarnedRent,
     totalEarnedDividends, totalEarnedTrading, totalEarnedCrypto, totalEarnedGems,
     upgrades, shopItems, accessoryItems, businesses, stockHoldings, cryptoHoldings,
-    stockPrices, cryptoPrices, licensePlates,
+    stockPrices, cryptoPrices, licensePlates, realEstateUpgrades,
   };
 
   const persistImmediate = useCallback((overrides: Partial<typeof latestState.current>) => {
@@ -311,7 +304,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       totalEarnedGems: s.totalEarnedGems,
       upgrades: s.upgrades, shopItems: s.shopItems, accessoryItems: s.accessoryItems,
       businesses: s.businesses, stockHoldings: s.stockHoldings, cryptoHoldings: s.cryptoHoldings,
-      licensePlates: s.licensePlates, stockPrices: s.stockPrices, cryptoPrices: s.cryptoPrices,
+      licensePlates: s.licensePlates, stockPrices: s.stockPrices, cryptoPrices: s.cryptoPrices, realEstateUpgrades: s.realEstateUpgrades,
     });
     localStorage.setItem(saveKey, JSON.stringify(state));
     latestState.current = s;
@@ -339,7 +332,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       totalEarnedGems: s.totalEarnedGems,
       upgrades: s.upgrades, shopItems: s.shopItems, accessoryItems: s.accessoryItems,
       businesses: s.businesses, stockHoldings: s.stockHoldings, cryptoHoldings: s.cryptoHoldings,
-      licensePlates: s.licensePlates, stockPrices: s.stockPrices, cryptoPrices: s.cryptoPrices,
+      licensePlates: s.licensePlates, stockPrices: s.stockPrices, cryptoPrices: s.cryptoPrices, realEstateUpgrades: s.realEstateUpgrades,
     });
 
     localStorage.setItem(saveKey, JSON.stringify(state));
@@ -363,7 +356,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       totalEarnedGems: s.totalEarnedGems,
       upgrades: s.upgrades, shopItems: s.shopItems, accessoryItems: s.accessoryItems,
       businesses: s.businesses, stockHoldings: s.stockHoldings, cryptoHoldings: s.cryptoHoldings,
-      licensePlates: s.licensePlates, stockPrices: s.stockPrices, cryptoPrices: s.cryptoPrices,
+      licensePlates: s.licensePlates, stockPrices: s.stockPrices, cryptoPrices: s.cryptoPrices, realEstateUpgrades: s.realEstateUpgrades,
     });
     localStorage.setItem(saveKey, JSON.stringify(state));
     await forceSaveNow(state, calculateFinancialSnapshot(s).netWorth);
@@ -377,7 +370,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [loaded, performSave, balance, clickPower, playerXp, totalEarnedClick,
     totalEarnedBusiness, totalEarnedRent, totalEarnedDividends, totalEarnedTrading,
     totalEarnedCrypto, totalEarnedGems, upgrades, shopItems, accessoryItems,
-    businesses, stockHoldings, cryptoHoldings, licensePlates, stockPrices, cryptoPrices]);
+    businesses, stockHoldings, cryptoHoldings, licensePlates, stockPrices, cryptoPrices, realEstateUpgrades]);
 
   // Save on beforeunload
   useEffect(() => {
@@ -389,11 +382,14 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // --- Income calculations ---
   const hasAutoclicker = upgrades.some(u => u.id === 'autoclicker' && u.currentLevel > 0);
   const hasAutoTax = upgrades.some(u => u.id === 'auto-tax' && u.currentLevel > 0);
-  const hourlyIncomeRent = shopItems.filter(i => i.purchased && i.category === 'realestate')
+  const hourlyIncomeRentGross = shopItems.filter(i => i.purchased && i.category === 'realestate')
     .reduce((sum, i) => {
       const data = shopItemsData.find(d => d.id === i.id);
-      return sum + (data?.baseIncomePerHour || i.price * 0.01);
+      const base = data?.baseIncomePerHour || i.price * 0.01;
+      const bonus = (realEstateUpgrades[i.id] || []).reduce((total, upgradeId) => total + (REAL_ESTATE_UPGRADES.find(upgrade => upgrade.id === upgradeId)?.incomeBonus ?? 0), 0);
+      return sum + base * (1 + bonus);
     }, 0);
+  const hourlyIncomeRent = hourlyIncomeRentGross * 0.93;
 
   const now = Date.now();
   const hourlyIncomeBusiness = businesses
@@ -415,34 +411,11 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     .filter(b => !b.taxPaid && Date.now() >= b.taxDueAt)
     .reduce((sum, b) => sum + b.taxAmount, 0);
 
-  // --- Price tick every 3 seconds ---
+  // --- Shared deterministic UTC market. No per-player random prices. ---
   useEffect(() => {
-    const interval = setInterval(() => {
-      setStockPrices(prev => {
-        const next = { ...prev };
-        stockAssets.forEach(a => {
-          const p = next[a.id];
-          const newPrice = nextPriceTick(p.current, a.volatility);
-          next[a.id] = {
-            current: newPrice,
-            history: [...p.history.slice(-29), newPrice],
-          };
-        });
-        return next;
-      });
-      setCryptoPrices(prev => {
-        const next = { ...prev };
-        cryptoAssets.forEach(a => {
-          const p = next[a.id];
-          const newPrice = nextPriceTick(p.current, a.volatility);
-          next[a.id] = {
-            current: newPrice,
-            history: [...p.history.slice(-29), newPrice],
-          };
-        });
-        return next;
-      });
-    }, 3000);
+    const update = () => { const next = sharedMarketPrices(stockAssets, cryptoAssets); setStockPrices(next.stocks); setCryptoPrices(next.crypto); };
+    update();
+    const interval = setInterval(update, 30_000);
     return () => clearInterval(interval);
   }, []);
 
@@ -622,12 +595,15 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const nextItems = shopItems.map(i => i.id === id ? { ...i, purchased: false } : i);
     const nextPlates = licensePlates.map(p => p.assignedTo === id ? { ...p, assignedTo: null } : p);
     const nextBalance = balance + refund;
-    persistImmediate({ balance: nextBalance, shopItems: nextItems, licensePlates: nextPlates });
+    const nextRealEstateUpgrades = { ...realEstateUpgrades };
+    delete nextRealEstateUpgrades[id];
+    persistImmediate({ balance: nextBalance, shopItems: nextItems, licensePlates: nextPlates, realEstateUpgrades: nextRealEstateUpgrades });
     setBalance(nextBalance);
     setShopItems(nextItems);
     setLicensePlates(nextPlates);
+    setRealEstateUpgrades(nextRealEstateUpgrades);
     return true;
-  }, [shopItems, licensePlates, balance, persistImmediate]);
+  }, [shopItems, licensePlates, realEstateUpgrades, balance, persistImmediate]);
 
   const sellAccessory = useCallback((id: string): boolean => {
     const item = accessoryItems.find(i => i.id === id);
@@ -640,6 +616,21 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setAccessoryItems(nextItems);
     return true;
   }, [accessoryItems, balance, persistImmediate]);
+
+  const buyRealEstateUpgrade = useCallback((itemId: string, upgradeId: string): boolean => {
+    const item = shopItems.find(entry => entry.id === itemId && entry.category === 'realestate' && entry.purchased);
+    const upgrade = REAL_ESTATE_UPGRADES.find(entry => entry.id === upgradeId);
+    if (!item || !upgrade || (realEstateUpgrades[itemId] || []).includes(upgradeId)) return false;
+    const cost = Math.round(item.price * upgrade.costRate);
+    if (balance < cost) return false;
+    const nextBalance = balance - cost;
+    const nextUpgrades = { ...realEstateUpgrades, [itemId]: [...(realEstateUpgrades[itemId] || []), upgradeId] };
+    persistImmediate({ balance: nextBalance, realEstateUpgrades: nextUpgrades });
+    setBalance(nextBalance);
+    setRealEstateUpgrades(nextUpgrades);
+    addExperience(25);
+    return true;
+  }, [shopItems, realEstateUpgrades, balance, persistImmediate, addExperience]);
 
   const openBusiness = useCallback(async (categoryId: string, name: string): Promise<boolean> => {
     const cat = businessCategories.find(c => c.id === categoryId);
@@ -755,7 +746,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // ── Investment functions ──
   const buyStock = useCallback((assetId: string, quantity: number): boolean => {
     const price = stockPrices[assetId]?.current;
-    if (!price || quantity <= 0) return false;
+    const asset = stockAssets.find(item => item.id === assetId);
+    if (!price || !asset || quantity <= 0 || quantity > asset.availableShares) return false;
     const cost = price * quantity;
     if (balance < cost) return false;
     const existing = stockHoldings.find(h => h.assetId === assetId);
@@ -803,7 +795,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const buyCrypto = useCallback((assetId: string, amount: number): boolean => {
     const price = cryptoPrices[assetId]?.current;
-    if (!price || amount <= 0) return false;
+    const asset = cryptoAssets.find(item => item.id === assetId);
+    if (!price || !asset || amount <= 0 || amount > asset.availableSupply) return false;
     const cost = price * amount;
     if (balance < cost) return false;
     const existing = cryptoHoldings.find(h => h.assetId === assetId);
@@ -903,9 +896,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       hourlyIncome, hourlyIncomeBusiness, hourlyIncomeRent, hourlyIncomeDividends,
       totalEarnedClick, totalEarnedBusiness, totalEarnedRent, totalEarnedDividends, totalEarnedTrading, totalEarnedCrypto, totalEarnedGems,
       upgrades, shopItems, accessoryItems, businesses, passiveIncome, netWorth, totalTaxDue,
-      stockHoldings, cryptoHoldings, stockPrices, cryptoPrices, licensePlates,
+      stockHoldings, cryptoHoldings, stockPrices, cryptoPrices, licensePlates, realEstateUpgrades,
       click, buyUpgrade, buyShopItem, sellShopItem, syncProgress, buyAccessory, sellAccessory, openBusiness, mergeBusiness, deleteBusiness, payTaxes,
-      buyStock, sellStock, buyCrypto, sellCrypto, spendBalance, addBalance, replaceBalance, addExperience,
+      buyStock, sellStock, buyCrypto, sellCrypto, buyRealEstateUpgrade, spendBalance, addBalance, replaceBalance, addExperience,
       addLicensePlate, assignPlate, removePlate, formatMoney,
     }}>
       {children}

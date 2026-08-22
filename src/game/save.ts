@@ -27,6 +27,7 @@ export interface SerializableGameState {
   licensePlates: LicensePlateState[];
   stockPrices: Record<string, { current: number; history: number[] }>;
   cryptoPrices: Record<string, { current: number; history: number[] }>;
+  realEstateUpgrades?: Record<string, string[]>;
 }
 
 export function serializeState(state: SerializableGameState): Record<string, unknown> {
@@ -58,6 +59,7 @@ export function serializeState(state: SerializableGameState): Record<string, unk
     licensePlates: state.licensePlates,
     stockPrices: state.stockPrices,
     cryptoPrices: state.cryptoPrices,
+    realEstateUpgrades: state.realEstateUpgrades ?? {},
   };
 }
 
