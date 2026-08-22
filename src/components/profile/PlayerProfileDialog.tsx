@@ -68,7 +68,7 @@ const PlayerProfileDialog: React.FC<Props> = ({ userId, onClose }) => {
   const [data, setData] = useState<FullData | null>(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [tab, setTab] = useState<'info' | 'reviews'>('info');
+  const [tab, setTab] = useState<'info' | 'showcase' | 'reviews'>('info');
   const [reportOpen, setReportOpen] = useState(false);
 
   // Review form
@@ -145,7 +145,7 @@ const PlayerProfileDialog: React.FC<Props> = ({ userId, onClose }) => {
 
   return (
     <Dialog open={!!userId} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Профиль игрока</DialogTitle>
           <DialogDescription>Полная общедоступная информация</DialogDescription>
@@ -207,33 +207,6 @@ const PlayerProfileDialog: React.FC<Props> = ({ userId, onClose }) => {
               </div>
             </div>
 
-            {/* Showcase (set by the player themselves) */}
-            {Array.isArray(p.showcase_items) && p.showcase_items.length > 0 && (
-              <div>
-                <h4 className="text-xs font-semibold text-muted-foreground mb-2">🏆 Витрина</h4>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {p.showcase_items.slice(0, 6).map((it, idx) => (
-                    <div key={`${it.cat}-${it.id}-${idx}`} className="bg-card rounded-xl border overflow-hidden">
-                      {it.image ? (
-                        <div className="aspect-square relative overflow-hidden">
-                          <img src={it.image} alt={it.name} className="w-full h-full object-cover" />
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
-                          <div className="absolute bottom-0 left-0 right-0 p-1.5">
-                            <p className="font-mono-game text-[10px] font-semibold text-white truncate">{it.name}</p>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="p-2 text-center">
-                          <p className="text-[10px] text-muted-foreground truncate">{it.cat}</p>
-                          <p className="text-[11px] font-semibold truncate">{it.name}</p>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
             {/* Tabs */}
             <div className="flex bg-muted/40 rounded-lg p-0.5">
               <button onClick={() => setTab('info')}
@@ -243,6 +216,10 @@ const PlayerProfileDialog: React.FC<Props> = ({ userId, onClose }) => {
               <button onClick={() => setTab('reviews')}
                 className={`flex-1 px-3 py-1.5 text-xs rounded-md transition-colors ${tab === 'reviews' ? 'bg-background shadow-sm font-medium' : 'text-muted-foreground'}`}>
                 💬 Отзывы ({p.reviews_count})
+              </button>
+              <button onClick={() => setTab('showcase')}
+                className={`flex-1 px-3 py-1.5 text-xs rounded-md transition-colors ${tab === 'showcase' ? 'bg-background shadow-sm font-medium' : 'text-muted-foreground'}`}>
+                🏆 Витрина ({p.showcase_items?.length ?? 0})
               </button>
             </div>
 
@@ -256,6 +233,12 @@ const PlayerProfileDialog: React.FC<Props> = ({ userId, onClose }) => {
                   value={p.avg_rating ? `${p.avg_rating} / 5` : '—'} />
                 <Stat icon="profile" label="В игре с" value={new Date(p.joined_at).toLocaleDateString()} />
                 <Stat icon="time" label="Был онлайн" value={formatRelative(p.last_seen_at)} />
+              </div>
+            ) : tab === 'showcase' ? (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                {Array.isArray(p.showcase_items) && p.showcase_items.length ? p.showcase_items.map((it, idx) => <div key={`${it.cat}-${it.id}-${idx}`} className="overflow-hidden rounded-2xl border bg-card">
+                  {it.image ? <div className="aspect-[4/3] relative overflow-hidden"><img src={it.image} alt={it.name} className="h-full w-full object-cover" /><div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" /><div className="absolute inset-x-0 bottom-0 p-3"><p className="truncate text-sm font-bold text-white">{it.name}</p><p className="text-[10px] uppercase text-white/60">{it.cat}</p></div></div> : <div className="p-5"><p className="text-xs text-muted-foreground">{it.cat}</p><p className="font-semibold">{it.name}</p></div>}
+                </div>) : <div className="col-span-full rounded-2xl border border-dashed p-10 text-center text-sm text-muted-foreground">Игрок пока ничего не добавил в витрину</div>}
               </div>
             ) : (
               <div className="space-y-3">

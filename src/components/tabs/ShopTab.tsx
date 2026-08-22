@@ -11,7 +11,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 
 const ShopTab: React.FC = () => {
   const { t, td } = useI18n();
-  const { balance, shopItems, buyShopItem, syncProgress } = useGame();
+  const { balance, shopItems, buyShopItem, sellShopItem, syncProgress } = useGame();
+  const [showPurchases, setShowPurchases] = useState(false);
   const [categoryId, setCategoryId] = useState(shopCategories[0]?.id ?? '');
   const [selected, setSelected] = useState<ShopItemData | null>(null);
   const [engine, setEngine] = useState('df');
@@ -21,7 +22,8 @@ const ShopTab: React.FC = () => {
   const [buying, setBuying] = useState(false);
 
   const category = shopCategories.find(item => item.id === categoryId);
-  const items = shopItemsData.filter(item => item.categoryId === categoryId);
+  const items = shopItemsData.filter(item => item.categoryId === categoryId && !shopItems.find(state => state.id === item.id)?.purchased);
+  const purchasedItems = shopItemsData.filter(item => shopItems.find(state => state.id === item.id)?.purchased);
   const ownedIds = useMemo(() => new Set(shopItems.filter(item => item.purchased).map(item => item.id)), [shopItems]);
   const ownedCount = ownedIds.size;
   const hourlyIncome = shopItemsData.reduce((sum, item) => ownedIds.has(item.id) ? sum + (item.baseIncomePerHour ?? 0) : sum, 0);
@@ -87,27 +89,28 @@ const ShopTab: React.FC = () => {
     </header>
 
     <section>
-      <div className="mb-3 flex items-end justify-between"><div><h3 className="text-lg font-bold">Категории</h3><p className="text-xs text-muted-foreground">Выберите раздел магазина</p></div><span className="text-xs text-muted-foreground">{shopCategories.length} разделов</span></div>
+      <div className="mb-3 flex items-end justify-between"><div><h3 className="text-lg font-bold">Категории</h3><p className="text-xs text-muted-foreground">Выберите раздел магазина</p></div><button onClick={() => setShowPurchases(value => !value)} className={`rounded-xl border px-3 py-2 text-xs font-semibold ${showPurchases ? 'border-cyan-400 bg-cyan-500/10 text-cyan-400' : 'hover:bg-muted'}`}><GameIcon name="shop" size={14} className="mr-1 inline" /> Покупки ({ownedCount})</button></div>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        {shopCategories.map(item => <button key={item.id} onClick={() => { setCategoryId(item.id); setSelected(null); }} className={`group relative aspect-[16/9] overflow-hidden rounded-2xl border text-left transition-all ${categoryId === item.id ? 'border-cyan-400 ring-2 ring-cyan-400/20' : 'border-border hover:-translate-y-0.5 hover:border-cyan-400/50 hover:shadow-lg'}`}><img src={item.image} alt={item.name} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" /><div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/25 to-transparent" /><div className="absolute inset-x-0 bottom-0 p-3"><p className="text-sm font-bold text-white">{td(`d.shopcat.${item.id}`, item.name)}</p><p className="truncate text-[10px] text-white/60">{td(`d.shopcat.${item.id}.d`, item.description)}</p></div></button>)}
+        {shopCategories.map(item => <button key={item.id} onClick={() => { setCategoryId(item.id); setSelected(null); setShowPurchases(false); }} className={`group relative aspect-[16/9] overflow-hidden rounded-2xl border text-left transition-all ${!showPurchases && categoryId === item.id ? 'border-cyan-400 ring-2 ring-cyan-400/20' : 'border-border hover:-translate-y-0.5 hover:border-cyan-400/50 hover:shadow-lg'}`}><img src={item.image} alt={item.name} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" /><div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/25 to-transparent" /><div className="absolute inset-x-0 bottom-0 p-3"><p className="text-sm font-bold text-white">{td(`d.shopcat.${item.id}`, item.name)}</p><p className="truncate text-[10px] text-white/60">{td(`d.shopcat.${item.id}.d`, item.description)}</p></div></button>)}
       </div>
     </section>
 
     <div className="grid gap-4">
       <section className="space-y-4">
         <div className="flex items-center gap-3">
-          {category && <img src={category.image} alt="" className="h-12 w-12 rounded-xl object-cover" />}
-          <div><h3 className="text-xl font-bold">{category ? td(`d.shopcat.${category.id}`, category.name) : ''}</h3><p className="text-sm text-muted-foreground">{category ? td(`d.shopcat.${category.id}.d`, category.description) : ''}</p></div>
+          {!showPurchases && category && <img src={category.image} alt="" className="h-12 w-12 rounded-xl object-cover" />}
+          <div><h3 className="text-xl font-bold">{showPurchases ? 'Покупки' : category ? td(`d.shopcat.${category.id}`, category.name) : ''}</h3><p className="text-sm text-muted-foreground">{showPurchases ? 'Ваше имущество. При продаже возвращается 25% цены покупки.' : category ? td(`d.shopcat.${category.id}.d`, category.description) : ''}</p></div>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {items.map(item => {
+          {(showPurchases ? purchasedItems : items).map(item => {
             const owned = ownedIds.has(item.id);
             const active = selected?.id === item.id;
-            return <button key={item.id} disabled={owned || buying} onClick={() => choose(item)} className={`group overflow-hidden rounded-2xl border bg-card text-left transition-all ${owned ? 'cursor-default border-emerald-500/25 opacity-70' : active ? 'border-cyan-400 ring-2 ring-cyan-400/20' : 'border-border hover:-translate-y-0.5 hover:border-cyan-400/50 hover:shadow-lg'}`}>
+            return <div key={item.id} onClick={() => !showPurchases && choose(item)} className={`group overflow-hidden rounded-2xl border bg-card text-left transition-all ${showPurchases ? 'border-emerald-500/25' : active ? 'border-cyan-400 ring-2 ring-cyan-400/20' : 'cursor-pointer border-border hover:-translate-y-0.5 hover:border-cyan-400/50 hover:shadow-lg'}`}>
               <div className="relative aspect-[4/3] overflow-hidden"><img src={item.image} alt={item.name} loading="lazy" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" /><div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/80 to-transparent" />{owned ? <span className="absolute right-2 top-2 rounded-full bg-emerald-500 px-2.5 py-1 text-[10px] font-bold text-white">{t('shop.purchased')}</span> : <span className="absolute right-2 top-2 rounded-full bg-black/65 px-2.5 py-1 font-mono-game text-xs text-white">${formatMoney(item.basePrice)}</span>}</div>
-              <div className="p-4"><h4 className="truncate text-sm font-bold">{td(`d.shop.${item.id}`, item.name)}</h4><p className="mt-1 line-clamp-2 min-h-8 text-xs text-muted-foreground">{td(`d.shop.${item.id}.d`, item.description)}</p><div className="mt-3 flex items-center justify-between text-xs">{item.baseIncomePerHour ? <span className="font-semibold text-emerald-500">+${formatMoney(item.baseIncomePerHour)}{t('shop.per_hour')}</span> : <span className="text-muted-foreground">{item.capacity ? `${item.capacity} ${td(`d.shop.${item.id}.cu`, item.capacityUnit ?? '')}` : item.location ? td(`d.shop.${item.id}.loc`, item.location) : 'Премиум'}</span>}<span className="text-cyan-400">{owned ? '✓' : 'Выбрать →'}</span></div></div>
-            </button>;
+              <div className="p-4"><h4 className="truncate text-sm font-bold">{td(`d.shop.${item.id}`, item.name)}</h4><p className="mt-1 line-clamp-2 min-h-8 text-xs text-muted-foreground">{td(`d.shop.${item.id}.d`, item.description)}</p><div className="mt-3 flex items-center justify-between text-xs">{showPurchases ? <><span className="text-muted-foreground">Цена: ${formatMoney(shopItems.find(i => i.id === item.id)?.price ?? item.basePrice)}</span><button onClick={event => { event.stopPropagation(); if (window.confirm(`Продать ${item.name} за 25% стоимости?`)) { sellShopItem(item.id); toast.success('Имущество продано'); } }} className="rounded-lg bg-red-500/10 px-2 py-1 font-semibold text-red-500">Продать за ${formatMoney((shopItems.find(i => i.id === item.id)?.price ?? item.basePrice) * .25)}</button></> : <><span className="text-muted-foreground">{item.baseIncomePerHour ? `+$${formatMoney(item.baseIncomePerHour)}${t('shop.per_hour')}` : 'Премиум'}</span><span className="text-cyan-400">Выбрать →</span></>}</div></div>
+            </div>;
           })}
+          {(showPurchases ? purchasedItems : items).length === 0 && <div className="col-span-full rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground">{showPurchases ? 'Покупок пока нет' : 'Все товары этой категории уже куплены'}</div>}
         </div>
       </section>
 

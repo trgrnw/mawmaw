@@ -147,6 +147,14 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (local) {
         try { localSaved = JSON.parse(local); } catch { /* ignore corrupt local data */ }
       }
+      let guestSaved: Record<string, unknown> | null = null;
+      const shouldMigrateGuest = user?.id && localStorage.getItem('pendingGuestProgressMigration') === '1';
+      if (shouldMigrateGuest) {
+        try {
+          const rawGuest = localStorage.getItem('gameState_guest');
+          if (rawGuest) guestSaved = JSON.parse(rawGuest);
+        } catch { /* ignore corrupt guest save */ }
+      }
 
       // Guests use a durable local save.
       if (!user?.id) {
@@ -189,6 +197,11 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (cloudSaved) {
         applyLoadedState(cloudSaved);
         localStorage.setItem(localKey, JSON.stringify(cloudSaved));
+        localStorage.removeItem('pendingGuestProgressMigration');
+      } else if (cloudExistedOrEmpty && guestSaved) {
+        // A newly-created account inherits the current guest run once.
+        applyLoadedState(guestSaved);
+        localStorage.setItem(localKey, JSON.stringify(guestSaved));
       } else if (cloudExistedOrEmpty && localSaved) {
         // First login after upgrading from local-only storage: migrate once.
         applyLoadedState(localSaved);
@@ -250,9 +263,11 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     if (Array.isArray(saved.purchasedAccessories)) {
-      setAccessoryItems(prev => prev.map(i =>
-        (saved.purchasedAccessories as string[]).includes(i.id) ? { ...i, purchased: true } : i
-      ));
+      setAccessoryItems(prev => prev.map(i => {
+        const entries = saved.purchasedAccessories as Array<string | { id: string; price?: number }>;
+        const match = entries.find(entry => typeof entry === 'string' ? entry === i.id : entry.id === i.id);
+        return match ? { ...i, purchased: true, price: typeof match === 'object' && match.price ? match.price : i.price } : i;
+      }));
     }
 
     if (Array.isArray(saved.businesses)) {
@@ -302,7 +317,12 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     latestState.current = s;
     if (user?.id && cloudLoadOkRef.current) {
       const nw = calculateFinancialSnapshot(s).netWorth;
-      forceSave(state, nw).catch(error => console.error('[GameContext] immediate cloud save failed', error));
+      forceSave(state, nw).then(() => {
+        if (localStorage.getItem('pendingGuestProgressMigration') === '1') {
+          localStorage.removeItem('pendingGuestProgressMigration');
+          localStorage.removeItem('gameState_guest');
+        }
+      }).catch(error => console.error('[GameContext] immediate cloud save failed', error));
     }
     return true;
   }, [user?.id, saveKey, forceSave]);
@@ -576,6 +596,32 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     addExperience(30);
     return true;
   }, [accessoryItems, balance, addExperience, persistImmediate]);
+
+  const sellShopItem = useCallback((id: string): boolean => {
+    const item = shopItems.find(i => i.id === id);
+    if (!item?.purchased) return false;
+    const refund = Math.round(item.price * 0.25);
+    const nextItems = shopItems.map(i => i.id === id ? { ...i, purchased: false } : i);
+    const nextPlates = licensePlates.map(p => p.assignedTo === id ? { ...p, assignedTo: null } : p);
+    const nextBalance = balance + refund;
+    persistImmediate({ balance: nextBalance, shopItems: nextItems, licensePlates: nextPlates });
+    setBalance(nextBalance);
+    setShopItems(nextItems);
+    setLicensePlates(nextPlates);
+    return true;
+  }, [shopItems, licensePlates, balance, persistImmediate]);
+
+  const sellAccessory = useCallback((id: string): boolean => {
+    const item = accessoryItems.find(i => i.id === id);
+    if (!item?.purchased || item.category === 'misc') return false;
+    const refund = Math.round(item.price * 0.25);
+    const nextItems = accessoryItems.map(i => i.id === id ? { ...i, purchased: false } : i);
+    const nextBalance = balance + refund;
+    persistImmediate({ balance: nextBalance, accessoryItems: nextItems });
+    setBalance(nextBalance);
+    setAccessoryItems(nextItems);
+    return true;
+  }, [accessoryItems, balance, persistImmediate]);
 
   const openBusiness = useCallback(async (categoryId: string, name: string): Promise<boolean> => {
     const cat = businessCategories.find(c => c.id === categoryId);
@@ -862,7 +908,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       totalEarnedClick, totalEarnedBusiness, totalEarnedRent, totalEarnedDividends, totalEarnedTrading, totalEarnedCrypto, totalEarnedGems,
       upgrades, shopItems, accessoryItems, businesses, passiveIncome, netWorth, totalTaxDue,
       stockHoldings, cryptoHoldings, stockPrices, cryptoPrices, licensePlates,
-      click, buyUpgrade, buyShopItem, syncProgress, buyAccessory, openBusiness, mergeBusiness, deleteBusiness, payTaxes,
+      click, buyUpgrade, buyShopItem, sellShopItem, syncProgress, buyAccessory, sellAccessory, openBusiness, mergeBusiness, deleteBusiness, payTaxes,
       buyStock, sellStock, buyCrypto, sellCrypto, spendBalance, addBalance, replaceBalance, addExperience,
       addLicensePlate, assignPlate, removePlate, formatMoney,
     }}>
