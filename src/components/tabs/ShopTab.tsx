@@ -7,6 +7,7 @@ import {
   shopCategories, shopItemsData, type ShopItemData,
 } from '@/data/shopData';
 import { useI18n } from '@/i18n/I18nContext';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 const ShopTab: React.FC = () => {
   const { t, td } = useI18n();
@@ -92,13 +93,13 @@ const ShopTab: React.FC = () => {
       </div>
     </section>
 
-    <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
+    <div className="grid gap-4">
       <section className="space-y-4">
         <div className="flex items-center gap-3">
           {category && <img src={category.image} alt="" className="h-12 w-12 rounded-xl object-cover" />}
           <div><h3 className="text-xl font-bold">{category ? td(`d.shopcat.${category.id}`, category.name) : ''}</h3><p className="text-sm text-muted-foreground">{category ? td(`d.shopcat.${category.id}.d`, category.description) : ''}</p></div>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {items.map(item => {
             const owned = ownedIds.has(item.id);
             const active = selected?.id === item.id;
@@ -110,17 +111,25 @@ const ShopTab: React.FC = () => {
         </div>
       </section>
 
-      {selected && <aside className="h-fit overflow-hidden rounded-3xl border border-cyan-500/25 bg-card xl:sticky xl:top-4">
-        <div className="relative aspect-[16/10] overflow-hidden"><img src={selected.image} alt={selected.name} className="h-full w-full object-cover" /><div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-card to-transparent" /><button onClick={() => !buying && setSelected(null)} disabled={buying} className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-lg text-white disabled:opacity-40">×</button></div>
-        <div className="-mt-8 relative space-y-4 p-5 pt-0">
-          <div><p className="text-xs font-semibold uppercase tracking-wider text-cyan-400">{t('shop.confirm_title')}</p><h3 className="mt-1 text-xl font-bold">{td(`d.shop.${selected.id}`, selected.name)}</h3><p className="mt-1 text-xs text-muted-foreground">{td(`d.shop.${selected.id}.d`, selected.description)}</p></div>
-          {selected.categoryId === 'cars' && <><Options title={t('shop.engine')} value={engine} setValue={setEngine} options={carEngineOptions} td={td} prefix="d.engine." /><Options title={t('shop.trim')} value={trim} setValue={setTrim} options={carTrimOptions} td={td} prefix="d.trim." /></>}
-          {(selected.categoryId === 'ships' || selected.categoryId === 'planes') && <><div><p className="mb-2 text-xs font-semibold text-muted-foreground">{t('shop.crew')}</p><button onClick={() => setCrew(value => !value)} className={`w-full rounded-xl border px-3 py-2.5 text-xs font-semibold ${crew ? 'border-cyan-400 bg-cyan-500/10 text-cyan-400' : 'border-border hover:bg-muted'}`}>{crew ? t('shop.crew_hired') : t('shop.hire_crew')} · +25%</button></div><Options title={t('shop.finish')} value={finish} setValue={setFinish} options={finishOptions} td={td} prefix="d.finish." /></>}
-          <div className="space-y-2 border-t border-border pt-4"><Row label={t('shop.total')} value={`$${formatMoney(finalPrice)}`} strong /><Row label={t('shop.balance')} value={`$${formatMoney(balance)}`} /><button onClick={purchase} disabled={buying || balance < finalPrice} className="mt-2 w-full rounded-xl bg-primary px-4 py-3 text-sm font-bold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-40">{buying ? 'Сохраняю в облако…' : balance < finalPrice ? t('biz.insufficient') : t('shop.confirm_buy')}</button></div>
-        </div>
-      </aside>}
-      {!selected && <aside className="h-fit rounded-3xl border border-cyan-500/20 bg-card p-5 xl:sticky xl:top-4"><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-500/10"><GameIcon name={categoryId} size={24} themed /></div><h3 className="mt-4 text-lg font-bold">{category ? td(`d.shopcat.${category.id}`, category.name) : t('shop.title')}</h3><p className="mt-1 text-sm text-muted-foreground">Выберите товар слева — здесь появятся подробности, настройки и подтверждение покупки.</p><div className="mt-5 space-y-2 border-t border-border pt-4"><Row label={t('shop.balance')} value={`$${formatMoney(balance)}`} /><Row label={t('shop.purchased')} value={`${ownedCount}/${shopItemsData.length}`} /><Row label={t('shop.income')} value={`$${formatMoney(hourlyIncome)}/ч`} /></div></aside>}
     </div>
+
+    <Dialog open={!!selected} onOpenChange={open => { if (!open && !buying) setSelected(null); }}>
+      <DialogContent className="max-h-[90vh] max-w-xl overflow-y-auto p-0">
+        {selected && <>
+          <div className="relative aspect-[16/8] overflow-hidden rounded-t-lg"><img src={selected.image} alt={selected.name} className="h-full w-full object-cover" /><div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" /></div>
+          <div className="space-y-4 px-6 pb-6">
+            <DialogHeader>
+              <p className="text-xs font-semibold uppercase tracking-wider text-cyan-400">{t('shop.confirm_title')}</p>
+              <DialogTitle>{td(`d.shop.${selected.id}`, selected.name)}</DialogTitle>
+              <DialogDescription>{td(`d.shop.${selected.id}.d`, selected.description)}</DialogDescription>
+            </DialogHeader>
+            {selected.categoryId === 'cars' && <><Options title={t('shop.engine')} value={engine} setValue={setEngine} options={carEngineOptions} td={td} prefix="d.engine." /><Options title={t('shop.trim')} value={trim} setValue={setTrim} options={carTrimOptions} td={td} prefix="d.trim." /></>}
+            {(selected.categoryId === 'ships' || selected.categoryId === 'planes') && <><div><p className="mb-2 text-xs font-semibold text-muted-foreground">{t('shop.crew')}</p><button onClick={() => setCrew(value => !value)} className={`w-full rounded-xl border px-3 py-2.5 text-xs font-semibold ${crew ? 'border-cyan-400 bg-cyan-500/10 text-cyan-400' : 'border-border hover:bg-muted'}`}>{crew ? t('shop.crew_hired') : t('shop.hire_crew')} · +25%</button></div><Options title={t('shop.finish')} value={finish} setValue={setFinish} options={finishOptions} td={td} prefix="d.finish." /></>}
+            <div className="space-y-2 border-t border-border pt-4"><Row label={t('shop.total')} value={`$${formatMoney(finalPrice)}`} strong /><Row label={t('shop.balance')} value={`$${formatMoney(balance)}`} /><button onClick={purchase} disabled={buying || balance < finalPrice} className="mt-2 w-full rounded-xl bg-primary px-4 py-3 text-sm font-bold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-40">{buying ? 'Сохраняю в облако…' : balance < finalPrice ? t('biz.insufficient') : t('shop.confirm_buy')}</button></div>
+          </div>
+        </>}
+      </DialogContent>
+    </Dialog>
   </div>;
 };
 
