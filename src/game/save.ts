@@ -1,6 +1,7 @@
 import type {
   Business,
   CryptoHolding,
+  EntrepreneurLicense,
   LicensePlateState,
   ShopItem,
   StockHolding,
@@ -28,6 +29,7 @@ export interface SerializableGameState {
   stockPrices: Record<string, { current: number; history: number[] }>;
   cryptoPrices: Record<string, { current: number; history: number[] }>;
   realEstateUpgrades?: Record<string, string[]>;
+  entrepreneurLicense?: EntrepreneurLicense | null;
 }
 
 export function serializeState(state: SerializableGameState): Record<string, unknown> {
@@ -60,6 +62,7 @@ export function serializeState(state: SerializableGameState): Record<string, unk
     stockPrices: state.stockPrices,
     cryptoPrices: state.cryptoPrices,
     realEstateUpgrades: state.realEstateUpgrades ?? {},
+    entrepreneurLicense: state.entrepreneurLicense ?? null,
   };
 }
 

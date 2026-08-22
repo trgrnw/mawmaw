@@ -1,132 +1,51 @@
 import React, { useMemo, useState } from 'react';
+import { Building2, CheckCircle2, FileBadge2, ReceiptText, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import GameIcon from '@/components/GameIcon';
 import { useGame, formatMoney } from '@/context/GameContext';
 import { businessCategories, generateBusinessName } from '@/data/businessNames';
 import { businessMergers } from '@/data/mergerData';
-import { useI18n } from '@/i18n/I18nContext';
+import { BUSINESS_COUNTRIES, BUSINESS_LEGAL_FORMS, ENTREPRENEUR_LICENSE_COST, calculateBusinessNet, getBusinessPlan } from '@/game/businessLifecycle';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import type { Business } from '@/game/types';
 
-type Section = 'portfolio' | 'launch' | 'mergers';
+type Section = 'portfolio' | 'register' | 'mergers';
+const statusLabel: Record<string,string> = { registered:'Предприятие зарегистрировано', building:'Строительство', equipping:'Оснащение', staffing:'Найм команды', operating:'Работает' };
 
 const BusinessTab: React.FC = () => {
-  const game = useGame();
-  const { t, td } = useI18n();
-  const [section, setSection] = useState<Section>('portfolio');
-  const [categoryId, setCategoryId] = useState(businessCategories[0]?.id ?? '');
-  const [name, setName] = useState('');
-  const [opening, setOpening] = useState(false);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
-  const category = businessCategories.find(item => item.id === categoryId);
+  const game=useGame();
+  const [section,setSection]=useState<Section>('portfolio'),[categoryId,setCategoryId]=useState(businessCategories[0].id),[name,setName]=useState(''),[country,setCountry]=useState('RU'),[busy,setBusy]=useState(false),[receipt,setReceipt]=useState<{name:string;category:string}|null>(null),[deleteId,setDeleteId]=useState<string|null>(null);
+  const category=businessCategories.find(c=>c.id===categoryId)!,plan=getBusinessPlan(categoryId);
+  const operating=game.businesses.filter(b=>b.status==='operating');
+  const totals=operating.reduce((a,b)=>({gross:a.gross+(b.grossRevenuePerHour||0),salary:a.salary+(b.salaryCostPerHour||0),costs:a.costs+(b.operatingCostPerHour||0),tax:a.tax+(b.taxCostPerHour||0),net:a.net+calculateBusinessNet(b)}),{gross:0,salary:0,costs:0,tax:0,net:0});
+  const assets=useMemo(()=>({stocks:game.stockHoldings.reduce((s,h)=>s+(game.stockPrices[h.assetId]?.current||0)*h.quantity,0),crypto:game.cryptoHoldings.reduce((s,h)=>s+(game.cryptoPrices[h.assetId]?.current||0)*h.quantity,0),realEstate:game.shopItems.filter(i=>i.purchased&&i.category==='realestate').reduce((s,i)=>s+i.price,0),islands:game.shopItems.filter(i=>i.purchased&&i.category==='islands').length}),[game.stockHoldings,game.stockPrices,game.cryptoHoldings,game.cryptoPrices,game.shopItems]);
 
-  const assets = useMemo(() => ({
-    stocks: game.stockHoldings.reduce((sum, item) => sum + (game.stockPrices[item.assetId]?.current ?? 0) * item.quantity, 0),
-    crypto: game.cryptoHoldings.reduce((sum, item) => sum + (game.cryptoPrices[item.assetId]?.current ?? 0) * item.quantity, 0),
-    realEstate: game.shopItems.filter(item => item.purchased && item.category === 'realestate').reduce((sum, item) => sum + item.price, 0),
-    islands: game.shopItems.filter(item => item.purchased && item.category === 'islands').length,
-  }), [game.stockHoldings, game.stockPrices, game.cryptoHoldings, game.cryptoPrices, game.shopItems]);
-
-  const createBusiness = async () => {
-    if (!category || !name.trim() || opening) return;
-    setOpening(true);
-    try {
-      if (!await game.openBusiness(category.id, name.trim())) {
-        toast.error(t('biz.insufficient'));
-        return;
-      }
-      toast.success(t('biz.open_btn'));
-      setName('');
-      setSection('portfolio');
-    } catch (error) {
-      console.error('[BusinessTab] create failed', error);
-      toast.error('Не удалось сохранить бизнес. Попробуйте ещё раз.');
-    } finally {
-      setOpening(false);
-    }
-  };
-
-  const sell = (id: string) => {
-    if (deleteId !== id) return setDeleteId(id);
-    game.deleteBusiness(id);
-    setDeleteId(null);
-    toast.success(t('biz.delete'));
-  };
-
-  const nav: Array<[Section, string, string]> = [
-    ['portfolio', t('biz.my_businesses'), 'briefcase'],
-    ['launch', t('biz.open'), 'build'],
-    ['mergers', t('biz.merge'), 'merge'],
-  ];
-
-  return <div className="max-w-5xl space-y-5 pb-8">
-    <header className="relative overflow-hidden rounded-3xl border border-sky-500/20 bg-card p-5 sm:p-7">
-      <div className="absolute -right-20 -top-24 h-64 w-64 rounded-full bg-sky-500/10 blur-3xl" />
-      <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-500/15"><GameIcon name="business" size={26} themed /></div>
-          <h2 className="text-2xl font-bold sm:text-3xl">{t('biz.title')}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">{t('biz.subtitle')}</p>
-        </div>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          <Metric label={t('biz.total_income')} value={`$${formatMoney(game.hourlyIncomeBusiness)}/ч`} />
-          <Metric label={t('biz.taxes_due')} value={`$${formatMoney(game.totalTaxDue)}`} danger={game.totalTaxDue > 0} />
-          <div className="col-span-2 sm:col-span-1"><Metric label={t('biz.balance')} value={`$${formatMoney(game.balance)}`} /></div>
-        </div>
-      </div>
-    </header>
-
-    <nav className="grid grid-cols-3 gap-2 rounded-2xl border border-border bg-card/80 p-1.5">
-      {nav.map(([id, label, icon]) => <button key={id} onClick={() => setSection(id)} className={`flex min-h-12 items-center justify-center gap-2 rounded-xl px-2 text-xs font-semibold transition-colors sm:text-sm ${section === id ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}><GameIcon name={icon} size={17} /><span className="truncate">{label}</span></button>)}
-    </nav>
-
-    {section === 'portfolio' && <section className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <div><h3 className="text-xl font-bold">{t('biz.my_businesses')}</h3><p className="text-sm text-muted-foreground">{game.businesses.length} · ${formatMoney(game.hourlyIncomeBusiness)}{t('earning.per_hour')}</p></div>
-        <button onClick={() => game.payTaxes()} disabled={game.totalTaxDue <= 0 || game.balance < game.totalTaxDue} className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-sm font-semibold text-amber-500 hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-40">{t('biz.pay_taxes')}</button>
-      </div>
-      {game.businesses.length === 0 ? <div className="flex min-h-72 flex-col items-center justify-center rounded-3xl border border-dashed border-border bg-card/50 p-8 text-center">
-        <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-muted"><GameIcon name="building" size={32} themed /></div>
-        <h4 className="font-bold">{t('biz.no_businesses')}</h4><p className="mt-1 text-sm text-muted-foreground">{t('biz.open_first')}</p>
-        <button onClick={() => setSection('launch')} className="mt-5 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground">{t('biz.open')}</button>
-      </div> : <div className="grid gap-3 md:grid-cols-2">{game.businesses.map(business => {
-        const overdue = !business.taxPaid && Date.now() >= business.taxDueAt;
-        const confirming = deleteId === business.id;
-        return <article key={business.id} className={`rounded-2xl border bg-card p-5 ${overdue ? 'border-destructive/40' : 'border-border'}`}>
-          <div className="flex items-start gap-3"><div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-sky-500/10"><GameIcon name={business.categoryId || 'business'} size={24} themed /></div><div className="min-w-0 flex-1"><h4 className="truncate font-bold">{business.name}</h4><p className="text-xs text-muted-foreground">{td(`d.bizcat.${business.categoryId}`, business.categoryName)}</p></div>{overdue && <span className="rounded-full bg-destructive/10 px-2 py-1 text-[10px] font-bold text-destructive">{t('biz.tax_unpaid')}</span>}</div>
-          <div className="mt-4 grid grid-cols-2 gap-2"><Mini label={t('biz.income')} value={`$${formatMoney(business.incomePerHour)}/ч`} /><Mini label={t('biz.cost')} value={`$${formatMoney(business.investmentCost)}`} /></div>
-          <div className="mt-4 flex items-center justify-between border-t border-border/60 pt-3"><span className="text-xs text-muted-foreground">{t('biz.refund')}: <b className="text-foreground">${formatMoney(business.investmentCost * .45)}</b></span><button onClick={() => sell(business.id)} onBlur={() => setDeleteId(current => current === business.id ? null : current)} className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${confirming ? 'bg-destructive text-destructive-foreground' : 'text-destructive hover:bg-destructive/10'}`}>{confirming ? t('biz.delete_confirm') : t('biz.delete')}</button></div>
-        </article>;
-      })}</div>}
-    </section>}
-
-    {section === 'launch' && category && <section className="grid gap-4 lg:grid-cols-[1.35fr_.65fr]">
-      <div className="rounded-3xl border border-border bg-card p-4 sm:p-5"><h3 className="text-xl font-bold">{t('biz.choose_category')}</h3><div className="mt-4 grid gap-2 sm:grid-cols-2">{businessCategories.map(item => {
-        const selected = item.id === categoryId;
-        const affordable = game.balance >= item.cost;
-        return <button key={item.id} onClick={() => { setCategoryId(item.id); setName(''); }} className={`flex items-center gap-3 rounded-2xl border p-3 text-left transition-colors ${selected ? 'border-sky-400 bg-sky-500/10' : 'border-border hover:bg-muted/60'}`}><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted"><GameIcon name={item.id} size={21} themed /></div><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold">{td(`d.bizcat.${item.id}`, item.name)}</p><p className="text-xs text-muted-foreground">${formatMoney(item.baseIncomePerHour)}/ч</p></div><div className="text-right"><p className="text-xs font-bold">${formatMoney(item.cost)}</p>{!affordable && <p className="text-[9px] text-destructive">{t('biz.insufficient')}</p>}</div></button>;
-      })}</div></div>
-      <aside className="h-fit rounded-3xl border border-sky-500/20 bg-card p-5 lg:sticky lg:top-4">
-        <div className="flex items-center gap-3"><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-500/10"><GameIcon name={category.id} size={25} themed /></div><div><h4 className="font-bold">{td(`d.bizcat.${category.id}`, category.name)}</h4><p className="text-xs text-muted-foreground">{t('biz.tax')}: 23% · {t('biz.every_72h')}</p></div></div>
-        <div className="my-5 space-y-2"><Mini label={t('biz.cost')} value={`$${formatMoney(category.cost)}`} /><Mini label={t('biz.income')} value={`$${formatMoney(category.baseIncomePerHour)}/ч`} /></div>
-        <label className="text-xs font-semibold text-muted-foreground">{t('biz.name_label')}</label><div className="mt-2 flex gap-2"><input value={name} onChange={event => setName(event.target.value)} maxLength={30} placeholder={t('biz.name_placeholder')} className="min-w-0 flex-1 rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-sky-400" /><button onClick={() => setName(generateBusinessName(category.id))} className="rounded-xl border border-border px-3 hover:bg-muted" aria-label="Generate name"><GameIcon name="random" size={18} /></button></div>
-        <button onClick={createBusiness} disabled={opening || !name.trim() || game.balance < category.cost} className="mt-4 w-full rounded-xl bg-primary px-4 py-3 text-sm font-bold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-40">{opening ? 'Сохраняю…' : t('biz.open_btn')}</button>
-      </aside>
-    </section>}
-
-    {section === 'mergers' && <section className="space-y-4"><div><h3 className="text-xl font-bold">{t('biz.merge')}</h3><p className="text-sm text-muted-foreground">Объединяйте компании и создавайте корпорации с повышенным доходом.</p></div><div className="grid gap-3 md:grid-cols-2">{businessMergers.map(merger => {
-      const checks = [
-        ...merger.requiredCategories.map(id => ({ id, met: game.businesses.some(business => business.categoryId === id) })),
-        ...(merger.minStockPortfolio ? [{ id: `Акции ≥ $${formatMoney(merger.minStockPortfolio)}`, met: assets.stocks >= merger.minStockPortfolio }] : []),
-        ...(merger.minCryptoPortfolio ? [{ id: `Криптовалюта ≥ $${formatMoney(merger.minCryptoPortfolio)}`, met: assets.crypto >= merger.minCryptoPortfolio }] : []),
-        ...(merger.minRealEstateValue ? [{ id: `Недвижимость ≥ $${formatMoney(merger.minRealEstateValue)}`, met: assets.realEstate >= merger.minRealEstateValue }] : []),
-        ...(merger.minIslandCount ? [{ id: `Острова ${assets.islands}/${merger.minIslandCount}`, met: assets.islands >= merger.minIslandCount }] : []),
-      ];
-      const available = checks.every(check => check.met);
-      return <article key={merger.id} className={`rounded-2xl border bg-card p-5 ${available ? 'border-purple-400/50' : 'border-border'}`}><div className="flex items-start justify-between gap-3"><div><GameIcon name="merge" size={30} themed /><h4 className="mt-2 text-lg font-bold">{td(`d.merger.${merger.id}`, merger.name)}</h4></div><span className="rounded-full bg-purple-500/10 px-3 py-1 text-xs font-bold text-purple-400">${formatMoney(merger.resultIncomePerHour)}/ч</span></div><div className="my-4 space-y-2">{checks.map(check => { const cat = businessCategories.find(item => item.id === check.id); return <div key={check.id} className="flex items-center gap-2 text-xs"><GameIcon name={check.met ? 'success' : 'cancel'} size={14} className={check.met ? 'text-emerald-500' : 'text-destructive'} /><span className={check.met ? 'text-foreground' : 'text-muted-foreground'}>{cat ? td(`d.bizcat.${cat.id}`, cat.name) : check.id}</span></div>; })}</div><button disabled={!available} onClick={() => { if (game.mergeBusiness(merger.id)) { toast.success(t('biz.merge')); setSection('portfolio'); } }} className="w-full rounded-xl bg-purple-500 px-4 py-2.5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground">{available ? 'Создать корпорацию' : t('biz.merge_locked')}</button></article>;
-    })}</div></section>}
+  const license=async()=>{if(!game.obtainEntrepreneurLicense(country))return toast.error(game.entrepreneurLicense?'Лицензия уже оформлена':'Недостаточно средств');await game.syncProgress();toast.success('Предпринимательская лицензия оформлена')};
+  const register=async()=>{if(!name.trim()||busy)return;setBusy(true);const ok=await game.openBusiness(categoryId,name.trim());if(ok){setReceipt({name:name.trim(),category:category.name});setName('');toast.success('Предприятие внесено в реестр')}else toast.error('Не удалось зарегистрировать предприятие');setBusy(false)};
+  const setup=async(b:Business,stepId:string)=>{if(!game.completeBusinessSetupStep(b.id,stepId))return toast.error('Недостаточно средств или предыдущий этап не завершён');await game.syncProgress();toast.success('Этап завершён')};
+  const hire=async(b:Business)=>{if(!game.hireBusinessTeam(b.id))return toast.error('Не удалось нанять команду');await game.syncProgress();toast.success('Предприятие запущено и начало приносить прибыль!')};
+  const sell=(b:Business)=>{if(deleteId!==b.id)return setDeleteId(b.id);game.deleteBusiness(b.id);setDeleteId(null);toast.success('Предприятие закрыто')};
+  return <div className="max-w-6xl space-y-5 pb-8"><header className="relative overflow-hidden rounded-3xl border border-sky-500/20 bg-card p-5 sm:p-7"><div className="absolute -right-20 -top-24 h-64 w-64 rounded-full bg-sky-500/10 blur-3xl"/><div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between"><div><div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-500/15"><GameIcon name="business" size={26} themed/></div><h2 className="text-2xl font-bold sm:text-3xl">Бизнес</h2><p className="mt-1 text-sm text-muted-foreground">От регистрации предпринимателя до работающей компании</p></div><div className="grid grid-cols-3 gap-2"><Metric label="Валовая выручка" value={`$${formatMoney(totals.gross)}/ч`}/><Metric label="Расходы и налоги" value={`-$${formatMoney(totals.salary+totals.costs+totals.tax)}/ч`} danger/><Metric label="Чистая прибыль" value={`+$${formatMoney(totals.net)}/ч`} good/></div></div></header>
+    <nav className="grid grid-cols-3 gap-2 rounded-2xl border bg-card p-1.5">{([['portfolio','Мои предприятия','briefcase'],['register','Открыть предприятие','build'],['mergers','Слияния','merge']] as Array<[Section,string,string]>).map(([id,label,icon])=><button key={id} onClick={()=>setSection(id)} className={`flex min-h-12 items-center justify-center gap-2 rounded-xl text-xs font-semibold sm:text-sm ${section===id?'bg-primary text-primary-foreground':'text-muted-foreground hover:bg-muted'}`}><GameIcon name={icon} size={17}/>{label}</button>)}</nav>
+    {section==='portfolio'&&<Portfolio businesses={game.businesses} game={game} setup={setup} hire={hire} sell={sell} deleteId={deleteId}/>}
+    {section==='register'&&(!game.entrepreneurLicense?<License country={country} setCountry={setCountry} balance={game.balance} submit={license}/>:<Register category={category} categoryId={categoryId} setCategoryId={setCategoryId} plan={plan} name={name} setName={setName} balance={game.balance} submit={register} busy={busy}/>) }
+    {section==='mergers'&&<Mergers game={game} assets={assets} done={()=>setSection('portfolio')}/>}
+    <Dialog open={!!receipt} onOpenChange={o=>!o&&setReceipt(null)}><DialogContent className="sm:max-w-md">{receipt&&<><DialogHeader><DialogTitle className="flex items-center gap-2"><ReceiptText className="h-5 w-5"/>Чек регистрации</DialogTitle><DialogDescription>Запись успешно внесена в реестр предприятий</DialogDescription></DialogHeader><div className="space-y-3 rounded-2xl border border-dashed bg-muted/20 p-5"><Info label="Предприятие" value={receipt.name}/><Info label="Направление" value={receipt.category}/><Info label="Правовая форма" value={game.entrepreneurLicense?.legalForm||'—'}/><Info label="Статус" value="Зарегистрировано, доход $0/ч"/><Info label="Следующий этап" value="Строительство предприятия"/></div><button onClick={()=>{setReceipt(null);setSection('portfolio')}} className="rounded-xl bg-primary py-3 font-bold text-primary-foreground">Перейти к строительству</button></>}</DialogContent></Dialog>
   </div>;
 };
 
-const Metric = ({ label, value, danger = false }: { label: string; value: string; danger?: boolean }) => <div className="min-w-32 rounded-2xl border border-border/70 bg-background/50 px-4 py-3"><p className="text-[11px] text-muted-foreground">{label}</p><p className={`mt-1 whitespace-nowrap font-mono-game text-sm font-bold ${danger ? 'text-destructive' : 'text-foreground'}`}>{value}</p></div>;
-const Mini = ({ label, value }: { label: string; value: string }) => <div className="flex items-center justify-between rounded-xl bg-muted/50 px-3 py-2.5 text-xs"><span className="text-muted-foreground">{label}</span><strong className="font-mono-game">{value}</strong></div>;
+const License=({country,setCountry,balance,submit}:{country:string;setCountry:(v:string)=>void;balance:number;submit:()=>void})=><section className="grid gap-4 lg:grid-cols-[1fr_360px]"><div className="rounded-3xl border bg-card p-6"><FileBadge2 className="h-10 w-10 text-sky-400"/><h3 className="mt-4 text-2xl font-bold">Сначала оформите предпринимателя</h3><p className="mt-2 max-w-2xl text-sm text-muted-foreground">Лицензия подтверждает право регистрировать предприятия. Она оформляется один раз и действует во всех направлениях бизнеса.</p><div className="mt-6 grid gap-3 sm:grid-cols-3"><Stage n="1" title="Лицензия" text="Получите правовой статус"/><Stage n="2" title="Регистрация" text="Выберите название и отрасль"/><Stage n="3" title="Запуск" text="Постройте объект, оснастите и наймите людей"/></div></div><aside className="h-fit rounded-3xl border border-sky-500/25 bg-card p-5"><label className="text-xs font-semibold text-muted-foreground">Страна регистрации</label><select value={country} onChange={e=>setCountry(e.target.value)} className="mt-2 w-full rounded-xl border bg-background px-3 py-3 text-sm">{BUSINESS_COUNTRIES.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select><div className="mt-4 space-y-2"><Info label="Документ" value={BUSINESS_LEGAL_FORMS[country]}/><Info label="Стоимость" value={`$${formatMoney(ENTREPRENEUR_LICENSE_COST)}`}/><Info label="Срок действия" value="Бессрочно"/></div><button onClick={submit} disabled={balance<ENTREPRENEUR_LICENSE_COST} className="mt-5 w-full rounded-xl bg-primary py-3 text-sm font-bold text-primary-foreground disabled:opacity-40">Оформить лицензию</button></aside></section>;
 
+const Register=({category,categoryId,setCategoryId,plan,name,setName,balance,submit,busy}:{category:(typeof businessCategories)[number];categoryId:string;setCategoryId:(v:string)=>void;plan:ReturnType<typeof getBusinessPlan>;name:string;setName:(v:string)=>void;balance:number;submit:()=>void;busy:boolean})=><section className="grid gap-4 lg:grid-cols-[1.2fr_380px]"><div className="rounded-3xl border bg-card p-5"><h3 className="text-xl font-bold">Выберите направление</h3><p className="text-sm text-muted-foreground">Регистрация сама по себе не приносит доход — после неё потребуется запустить предприятие.</p><div className="mt-4 grid gap-2 sm:grid-cols-2">{businessCategories.map(c=>{const p=getBusinessPlan(c.id);return <button key={c.id} onClick={()=>{setCategoryId(c.id);setName('')}} className={`flex items-center gap-3 rounded-2xl border p-3 text-left ${c.id===categoryId?'border-sky-400 bg-sky-500/10':'hover:bg-muted'}`}><GameIcon name={c.id} size={22} themed/><div className="flex-1"><p className="text-sm font-bold">{c.name}</p><p className="text-[10px] text-muted-foreground">Регистрация ${formatMoney(p.registrationCost)}</p></div></button>})}</div></div><aside className="h-fit rounded-3xl border border-sky-500/25 bg-card p-5 lg:sticky lg:top-4"><h4 className="font-bold">{category.name}</h4><p className="text-xs text-muted-foreground">После полного запуска: до ${formatMoney(category.baseIncomePerHour)}/ч валовой выручки</p><div className="my-4 space-y-2"><Info label="Регистрация" value={`$${formatMoney(plan.registrationCost)}`}/><Info label="Строительство и оснащение" value={`$${formatMoney(plan.steps.reduce((s,x)=>s+x.cost,0))}`}/><Info label={`Найм ${plan.employeesRequired} сотрудников`} value={`$${formatMoney(plan.hiringCost)}`}/></div><label className="text-xs font-semibold text-muted-foreground">Название предприятия</label><div className="mt-2 flex gap-2"><input value={name} onChange={e=>setName(e.target.value)} maxLength={30} className="min-w-0 flex-1 rounded-xl border bg-background px-3 py-2.5 text-sm" placeholder="Название"/><button onClick={()=>setName(generateBusinessName(category.id))} className="rounded-xl border px-3"><GameIcon name="random" size={18}/></button></div><button onClick={submit} disabled={busy||!name.trim()||balance<plan.registrationCost} className="mt-4 w-full rounded-xl bg-primary py-3 text-sm font-bold text-primary-foreground disabled:opacity-40">{busy?'Регистрирую…':'Зарегистрировать и получить чек'}</button></aside></section>;
+
+const Portfolio=({businesses,game,setup,hire,sell,deleteId}:{businesses:Business[];game:ReturnType<typeof useGame>;setup:(b:Business,s:string)=>void;hire:(b:Business)=>void;sell:(b:Business)=>void;deleteId:string|null})=><section className="space-y-4"><div><h3 className="text-xl font-bold">Мои предприятия</h3><p className="text-sm text-muted-foreground">{businesses.length} предприятий · {businesses.filter(b=>b.status==='operating').length} работают</p></div>{!businesses.length?<div className="flex min-h-64 items-center justify-center rounded-3xl border border-dashed text-sm text-muted-foreground">Сначала оформите лицензию и зарегистрируйте предприятие</div>:<div className="grid gap-4 lg:grid-cols-2">{businesses.map(b=><BusinessCard key={b.id} business={b} game={game} setup={setup} hire={hire} sell={sell} confirming={deleteId===b.id}/>)}</div>}</section>;
+
+const BusinessCard=({business:b,game,setup,hire,sell,confirming}:{business:Business;game:ReturnType<typeof useGame>;setup:(b:Business,s:string)=>void;hire:(b:Business)=>void;sell:(b:Business)=>void;confirming:boolean})=>{const plan=getBusinessPlan(b.categoryId),completed=b.completedSetupSteps||[],next=plan.steps.find(s=>!completed.includes(s.id)),net=calculateBusinessNet(b);return <article className={`rounded-3xl border bg-card p-5 ${b.status==='operating'?'border-emerald-500/25':'border-sky-500/20'}`}><div className="flex items-start gap-3"><div className="flex h-12 w-12 items-center justify-center rounded-xl bg-sky-500/10"><GameIcon name={b.categoryId} size={24} themed/></div><div className="min-w-0 flex-1"><h4 className="truncate font-bold">{b.name}</h4><p className="text-xs text-muted-foreground">{b.categoryName} · {b.registrationNumber}</p></div><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${b.status==='operating'?'bg-emerald-500/10 text-emerald-500':'bg-amber-500/10 text-amber-500'}`}>{statusLabel[b.status||'registered']}</span></div><div className="mt-4 grid grid-cols-4 gap-2"><Small label="Выручка" value={`$${formatMoney(b.grossRevenuePerHour||0)}`}/><Small label="Зарплаты" value={`-$${formatMoney(b.salaryCostPerHour||0)}`}/><Small label="Налог" value={`-$${formatMoney(b.taxCostPerHour||0)}`}/><Small label="Чистыми" value={`$${formatMoney(net)}`}/></div>{b.status!=='operating'&&<div className="mt-4 rounded-2xl bg-muted/30 p-4"><div className="mb-3 flex items-center justify-between text-xs"><span>Подготовка предприятия</span><b>{completed.length}/{plan.steps.length} + команда</b></div><div className="space-y-2">{plan.steps.map(s=><div key={s.id} className="flex items-center gap-2 text-xs">{completed.includes(s.id)?<CheckCircle2 className="h-4 w-4 text-emerald-500"/>:<span className="h-4 w-4 rounded-full border"/>}<span className="flex-1">{s.name}</span><span>${formatMoney(s.cost)}</span></div>)}<div className="flex items-center gap-2 text-xs">{b.status==='operating'?<CheckCircle2 className="h-4 w-4 text-emerald-500"/>:<Users className="h-4 w-4 text-muted-foreground"/>}<span className="flex-1">Нанять {plan.employeesRequired} сотрудников</span><span>${formatMoney(plan.hiringCost)}</span></div></div>{next?<button onClick={()=>setup(b,next.id)} disabled={game.balance<next.cost} className="mt-4 w-full rounded-xl bg-sky-500 py-2.5 text-sm font-bold text-white disabled:opacity-40">Выполнить: {next.name}</button>:<button onClick={()=>hire(b)} disabled={game.balance<plan.hiringCost} className="mt-4 w-full rounded-xl bg-emerald-500 py-2.5 text-sm font-bold text-white disabled:opacity-40">Нанять команду и запустить</button>}</div>}<div className="mt-4 flex items-center justify-between border-t pt-3"><span className="text-xs text-muted-foreground">Вложено: <b>${formatMoney(b.investmentCost)}</b></span><button onClick={()=>sell(b)} className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${confirming?'bg-destructive text-white':'text-destructive hover:bg-destructive/10'}`}>{confirming?'Подтвердить закрытие':'Закрыть предприятие'}</button></div></article>};
+
+const Mergers=({game,assets,done}:{game:ReturnType<typeof useGame>;assets:{stocks:number;crypto:number;realEstate:number;islands:number};done:()=>void})=><section className="grid gap-3 md:grid-cols-2">{businessMergers.map(m=>{const checks=[...m.requiredCategories.map(id=>({label:businessCategories.find(c=>c.id===id)?.name||id,met:game.businesses.some(b=>b.categoryId===id&&b.status==='operating')})),...(m.minStockPortfolio?[{label:`Акции ≥ $${formatMoney(m.minStockPortfolio)}`,met:assets.stocks>=m.minStockPortfolio}]:[]),...(m.minCryptoPortfolio?[{label:`Крипта ≥ $${formatMoney(m.minCryptoPortfolio)}`,met:assets.crypto>=m.minCryptoPortfolio}]:[]),...(m.minRealEstateValue?[{label:`Недвижимость ≥ $${formatMoney(m.minRealEstateValue)}`,met:assets.realEstate>=m.minRealEstateValue}]:[]),...(m.minIslandCount?[{label:`Острова ${assets.islands}/${m.minIslandCount}`,met:assets.islands>=m.minIslandCount}]:[])],available=checks.every(c=>c.met);return <article key={m.id} className="rounded-3xl border bg-card p-5"><h4 className="text-lg font-bold">{m.name}</h4><p className="text-xs text-muted-foreground">Корпорация приносит чистую прибыль после внутренних расходов</p><div className="my-4 space-y-2">{checks.map(c=><p key={c.label} className={`text-xs ${c.met?'text-emerald-500':'text-muted-foreground'}`}>{c.met?'✓':'○'} {c.label}</p>)}</div><button disabled={!available} onClick={()=>{if(game.mergeBusiness(m.id)){toast.success('Корпорация создана');done()}}} className="w-full rounded-xl bg-purple-500 py-2.5 text-sm font-bold text-white disabled:bg-muted disabled:text-muted-foreground">{available?'Создать корпорацию':'Требования не выполнены'}</button></article>})}</section>;
+
+const Metric=({label,value,danger,good}:{label:string;value:string;danger?:boolean;good?:boolean})=><div className="rounded-2xl border bg-background/50 px-3 py-3"><p className="text-[10px] text-muted-foreground">{label}</p><p className={`mt-1 whitespace-nowrap font-mono-game text-xs font-bold ${danger?'text-destructive':good?'text-emerald-500':''}`}>{value}</p></div>;
+const Small=({label,value}:{label:string;value:string})=><div className="min-w-0 rounded-xl bg-muted/40 p-2"><p className="truncate text-[9px] text-muted-foreground">{label}</p><p className="truncate font-mono-game text-[11px] font-bold">{value}/ч</p></div>;
+const Info=({label,value}:{label:string;value:string})=><div className="flex items-start justify-between gap-3 text-xs"><span className="text-muted-foreground">{label}</span><b className="text-right">{value}</b></div>;
+const Stage=({n,title,text}:{n:string;title:string;text:string})=><div className="rounded-2xl border bg-muted/20 p-4"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-sky-500 text-xs font-bold text-white">{n}</span><p className="mt-3 text-sm font-bold">{title}</p><p className="text-xs text-muted-foreground">{text}</p></div>;
 export default BusinessTab;

@@ -15,6 +15,7 @@ import type {
   ShopItem,
   StockHolding,
   Upgrade,
+  EntrepreneurLicense,
 } from '@/game/types';
 import { defaultAccessories, defaultShopItems } from '@/game/defaults';
 import { defaultUpgrades, upgradeLevels } from '@/game/upgrades';
@@ -41,6 +42,7 @@ import {
 import GameIcon from '@/components/GameIcon';
 import { sharedMarketPrices } from '@/game/marketEngine';
 import { REAL_ESTATE_UPGRADES } from '@/game/realEstate';
+import { calculateBusinessNet, createLicense, getBusinessPlan, migrateBusiness, ENTREPRENEUR_LICENSE_COST } from '@/game/businessLifecycle';
 
 export { formatMoney };
 
@@ -91,6 +93,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [cryptoPrices, setCryptoPrices] = useState<PriceData>(initialPrices.crypto);
   const [licensePlates, setLicensePlates] = useState<LicensePlateState[]>([]);
   const [realEstateUpgrades, setRealEstateUpgrades] = useState<Record<string, string[]>>({});
+  const [entrepreneurLicense, setEntrepreneurLicense] = useState<EntrepreneurLicense | null>(null);
 
   // ── Reset state to defaults ──
   function resetToDefaults() {
@@ -113,6 +116,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setCryptoHoldings([]);
     setLicensePlates([]);
     setRealEstateUpgrades({});
+    setEntrepreneurLicense(null);
   }
 
   const prevUserId = useRef<string | null | undefined>(undefined);
@@ -265,7 +269,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     if (Array.isArray(saved.businesses)) {
-      setBusinesses(saved.businesses as Business[]);
+      setBusinesses((saved.businesses as Business[]).map(migrateBusiness));
     }
     if (Array.isArray(saved.stockHoldings)) {
       setStockHoldings(saved.stockHoldings as StockHolding[]);
@@ -277,6 +281,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLicensePlates(saved.licensePlates as LicensePlateState[]);
     }
     if (saved.realEstateUpgrades && typeof saved.realEstateUpgrades === 'object') setRealEstateUpgrades(saved.realEstateUpgrades as Record<string, string[]>);
+    if (saved.entrepreneurLicense && typeof saved.entrepreneurLicense === 'object') setEntrepreneurLicense(saved.entrepreneurLicense as EntrepreneurLicense);
   }
 
   // ── Refs for latest state (used by interval-based save) ──
@@ -284,13 +289,13 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     balance, clickPower, playerXp, totalEarnedClick, totalEarnedBusiness, totalEarnedRent,
     totalEarnedDividends, totalEarnedTrading, totalEarnedCrypto, totalEarnedGems,
     upgrades, shopItems, accessoryItems, businesses, stockHoldings, cryptoHoldings,
-    stockPrices, cryptoPrices, licensePlates, realEstateUpgrades,
+    stockPrices, cryptoPrices, licensePlates, realEstateUpgrades, entrepreneurLicense,
   });
   latestState.current = {
     balance, clickPower, playerXp, totalEarnedClick, totalEarnedBusiness, totalEarnedRent,
     totalEarnedDividends, totalEarnedTrading, totalEarnedCrypto, totalEarnedGems,
     upgrades, shopItems, accessoryItems, businesses, stockHoldings, cryptoHoldings,
-    stockPrices, cryptoPrices, licensePlates, realEstateUpgrades,
+    stockPrices, cryptoPrices, licensePlates, realEstateUpgrades, entrepreneurLicense,
   };
 
   const persistImmediate = useCallback((overrides: Partial<typeof latestState.current>) => {
@@ -304,7 +309,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       totalEarnedGems: s.totalEarnedGems,
       upgrades: s.upgrades, shopItems: s.shopItems, accessoryItems: s.accessoryItems,
       businesses: s.businesses, stockHoldings: s.stockHoldings, cryptoHoldings: s.cryptoHoldings,
-      licensePlates: s.licensePlates, stockPrices: s.stockPrices, cryptoPrices: s.cryptoPrices, realEstateUpgrades: s.realEstateUpgrades,
+      licensePlates: s.licensePlates, stockPrices: s.stockPrices, cryptoPrices: s.cryptoPrices, realEstateUpgrades: s.realEstateUpgrades, entrepreneurLicense: s.entrepreneurLicense,
     });
     localStorage.setItem(saveKey, JSON.stringify(state));
     latestState.current = s;
@@ -332,7 +337,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       totalEarnedGems: s.totalEarnedGems,
       upgrades: s.upgrades, shopItems: s.shopItems, accessoryItems: s.accessoryItems,
       businesses: s.businesses, stockHoldings: s.stockHoldings, cryptoHoldings: s.cryptoHoldings,
-      licensePlates: s.licensePlates, stockPrices: s.stockPrices, cryptoPrices: s.cryptoPrices, realEstateUpgrades: s.realEstateUpgrades,
+      licensePlates: s.licensePlates, stockPrices: s.stockPrices, cryptoPrices: s.cryptoPrices, realEstateUpgrades: s.realEstateUpgrades, entrepreneurLicense: s.entrepreneurLicense,
     });
 
     localStorage.setItem(saveKey, JSON.stringify(state));
@@ -356,7 +361,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       totalEarnedGems: s.totalEarnedGems,
       upgrades: s.upgrades, shopItems: s.shopItems, accessoryItems: s.accessoryItems,
       businesses: s.businesses, stockHoldings: s.stockHoldings, cryptoHoldings: s.cryptoHoldings,
-      licensePlates: s.licensePlates, stockPrices: s.stockPrices, cryptoPrices: s.cryptoPrices, realEstateUpgrades: s.realEstateUpgrades,
+      licensePlates: s.licensePlates, stockPrices: s.stockPrices, cryptoPrices: s.cryptoPrices, realEstateUpgrades: s.realEstateUpgrades, entrepreneurLicense: s.entrepreneurLicense,
     });
     localStorage.setItem(saveKey, JSON.stringify(state));
     await forceSaveNow(state, calculateFinancialSnapshot(s).netWorth);
@@ -370,7 +375,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [loaded, performSave, balance, clickPower, playerXp, totalEarnedClick,
     totalEarnedBusiness, totalEarnedRent, totalEarnedDividends, totalEarnedTrading,
     totalEarnedCrypto, totalEarnedGems, upgrades, shopItems, accessoryItems,
-    businesses, stockHoldings, cryptoHoldings, licensePlates, stockPrices, cryptoPrices, realEstateUpgrades]);
+    businesses, stockHoldings, cryptoHoldings, licensePlates, stockPrices, cryptoPrices, realEstateUpgrades, entrepreneurLicense]);
 
   // Save on beforeunload
   useEffect(() => {
@@ -391,10 +396,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }, 0);
   const hourlyIncomeRent = hourlyIncomeRentGross * 0.93;
 
-  const now = Date.now();
-  const hourlyIncomeBusiness = businesses
-    .filter(b => b.taxPaid || now < b.taxDueAt)
-    .reduce((sum, b) => sum + b.incomePerHour * (hasAutoTax ? (1 - b.taxRate) : 1), 0);
+  const hourlyIncomeBusiness = businesses.reduce((sum, business) => sum + calculateBusinessNet(business), 0);
 
   // Dividend income
   const hourlyIncomeDividends = stockHoldings.reduce((sum, h) => {
@@ -408,6 +410,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const passiveIncome = hourlyIncome / 3600;
 
   const totalTaxDue = businesses
+    .filter(b => !b.status)
     .filter(b => !b.taxPaid && Date.now() >= b.taxDueAt)
     .reduce((sum, b) => sum + b.taxAmount, 0);
 
@@ -506,6 +509,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const interval = setInterval(() => {
       setBusinesses(prev => prev.map(b => {
+        if (b.status) return b;
         if (hasAutoTax && Date.now() >= b.taxDueAt) {
           return { ...b, taxPaid: true, taxDueAt: Date.now() + TAX_PERIOD_MS, taxAmount: 0 };
         }
@@ -634,25 +638,76 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const openBusiness = useCallback(async (categoryId: string, name: string): Promise<boolean> => {
     const cat = businessCategories.find(c => c.id === categoryId);
-    if (!cat || balance < cat.cost) return false;
+    if (!cat || !entrepreneurLicense) return false;
+    const plan = getBusinessPlan(categoryId);
+    if (balance < plan.registrationCost) return false;
     const newBusiness = createBusiness({
       id: `biz-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       name,
       categoryId: cat.id,
       categoryName: cat.name,
       emoji: cat.emoji,
-      investmentCost: cat.cost,
-      incomePerHour: cat.baseIncomePerHour,
+      investmentCost: plan.registrationCost,
+      incomePerHour: 0,
     });
-    const nextBalance = balance - cat.cost;
-    const nextBusinesses = [...businesses, newBusiness];
+    const registered: Business = { ...newBusiness, status: 'registered', registrationNumber: `ENT-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2,6).toUpperCase()}`, completedSetupSteps: [], employeesHired: 0, employeesRequired: plan.employeesRequired, grossRevenuePerHour: cat.baseIncomePerHour, salaryCostPerHour: 0, operatingCostPerHour: plan.operatingCostPerHour, taxCostPerHour: 0, taxRate: plan.taxRate, taxPaid: true, taxAmount: 0 };
+    const nextBalance = balance - plan.registrationCost;
+    const nextBusinesses = [...businesses, registered];
     persistImmediate({ balance: nextBalance, businesses: nextBusinesses });
     setBalance(nextBalance);
     setBusinesses(nextBusinesses);
     addExperience(75);
     await syncProgress();
     return true;
-  }, [balance, businesses, addExperience, persistImmediate, syncProgress]);
+  }, [balance, businesses, entrepreneurLicense, addExperience, persistImmediate, syncProgress]);
+
+  const obtainEntrepreneurLicense = useCallback((country: string): boolean => {
+    if (entrepreneurLicense || balance < ENTREPRENEUR_LICENSE_COST) return false;
+    const license = createLicense(country);
+    const nextBalance = balance - ENTREPRENEUR_LICENSE_COST;
+    persistImmediate({ balance: nextBalance, entrepreneurLicense: license });
+    setBalance(nextBalance);
+    setEntrepreneurLicense(license);
+    addExperience(20);
+    return true;
+  }, [entrepreneurLicense, balance, persistImmediate, addExperience]);
+
+  const completeBusinessSetupStep = useCallback((businessId: string, stepId: string): boolean => {
+    const business = businesses.find(item => item.id === businessId);
+    if (!business || business.status === 'operating') return false;
+    const plan = getBusinessPlan(business.categoryId);
+    const step = plan.steps.find(item => item.id === stepId);
+    const completed = business.completedSetupSteps || [];
+    const nextStep = plan.steps.find(item => !completed.includes(item.id));
+    if (!step || nextStep?.id !== stepId || balance < step.cost) return false;
+    const nextCompleted = [...completed, stepId];
+    const finishedSetup = nextCompleted.length === plan.steps.length;
+    const nextBusiness: Business = { ...business, completedSetupSteps: nextCompleted, status: finishedSetup ? 'staffing' : (step.stage || 'building'), investmentCost: business.investmentCost + step.cost };
+    const nextBusinesses = businesses.map(item => item.id === businessId ? nextBusiness : item);
+    const nextBalance = balance - step.cost;
+    persistImmediate({ balance: nextBalance, businesses: nextBusinesses });
+    setBalance(nextBalance);
+    setBusinesses(nextBusinesses);
+    addExperience(35);
+    return true;
+  }, [businesses, balance, persistImmediate, addExperience]);
+
+  const hireBusinessTeam = useCallback((businessId: string): boolean => {
+    const business = businesses.find(item => item.id === businessId);
+    if (!business) return false;
+    const plan = getBusinessPlan(business.categoryId);
+    if ((business.completedSetupSteps || []).length < plan.steps.length || business.status === 'operating' || balance < plan.hiringCost) return false;
+    const salary = plan.employeesRequired * plan.salaryPerEmployee;
+    const gross = business.grossRevenuePerHour || businessCategories.find(item => item.id === business.categoryId)?.baseIncomePerHour || 0;
+    const nextBusiness: Business = { ...business, status: 'operating', employeesHired: plan.employeesRequired, employeesRequired: plan.employeesRequired, salaryCostPerHour: salary, operatingCostPerHour: plan.operatingCostPerHour, taxCostPerHour: gross * plan.taxRate, incomePerHour: Math.max(0, gross - salary - plan.operatingCostPerHour - gross * plan.taxRate), investmentCost: business.investmentCost + plan.hiringCost, taxPaid: true, taxAmount: 0 };
+    const nextBusinesses = businesses.map(item => item.id === businessId ? nextBusiness : item);
+    const nextBalance = balance - plan.hiringCost;
+    persistImmediate({ balance: nextBalance, businesses: nextBusinesses });
+    setBalance(nextBalance);
+    setBusinesses(nextBusinesses);
+    addExperience(80);
+    return true;
+  }, [businesses, balance, persistImmediate, addExperience]);
 
   const mergeBusiness = useCallback((mergerId: string): boolean => {
     const merger = businessMergers.find(m => m.id === mergerId);
@@ -660,7 +715,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const consumedBizIds: string[] = [];
     for (const catId of merger.requiredCategories) {
-      const biz = businesses.find(b => b.categoryId === catId && !consumedBizIds.includes(b.id));
+      const biz = businesses.find(b => b.categoryId === catId && b.status === 'operating' && !consumedBizIds.includes(b.id));
       if (!biz) return false;
       consumedBizIds.push(biz.id);
     }
@@ -687,7 +742,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }, 0);
 
     const filtered = businesses.filter(b => !consumedBizIds.includes(b.id));
-    const newBiz = createBusiness({
+    const newBiz = migrateBusiness(createBusiness({
       id: `merge-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       name: merger.name,
       categoryId: merger.id,
@@ -695,7 +750,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       emoji: merger.emoji,
       investmentCost: totalInvestment,
       incomePerHour: merger.resultIncomePerHour,
-    });
+    }));
     const nextBusinesses = [...filtered, newBiz];
     persistImmediate({ businesses: nextBusinesses });
     setBusinesses(nextBusinesses);
@@ -896,8 +951,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       hourlyIncome, hourlyIncomeBusiness, hourlyIncomeRent, hourlyIncomeDividends,
       totalEarnedClick, totalEarnedBusiness, totalEarnedRent, totalEarnedDividends, totalEarnedTrading, totalEarnedCrypto, totalEarnedGems,
       upgrades, shopItems, accessoryItems, businesses, passiveIncome, netWorth, totalTaxDue,
-      stockHoldings, cryptoHoldings, stockPrices, cryptoPrices, licensePlates, realEstateUpgrades,
-      click, buyUpgrade, buyShopItem, sellShopItem, syncProgress, buyAccessory, sellAccessory, openBusiness, mergeBusiness, deleteBusiness, payTaxes,
+      stockHoldings, cryptoHoldings, stockPrices, cryptoPrices, licensePlates, realEstateUpgrades, entrepreneurLicense,
+      click, buyUpgrade, buyShopItem, sellShopItem, syncProgress, buyAccessory, sellAccessory, openBusiness, obtainEntrepreneurLicense, completeBusinessSetupStep, hireBusinessTeam, mergeBusiness, deleteBusiness, payTaxes,
       buyStock, sellStock, buyCrypto, sellCrypto, buyRealEstateUpgrade, spendBalance, addBalance, replaceBalance, addExperience,
       addLicensePlate, assignPlate, removePlate, formatMoney,
     }}>
