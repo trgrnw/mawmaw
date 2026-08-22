@@ -38,6 +38,7 @@ import {
   rewardsBetweenLevels,
   XP_PER_CLICK,
 } from '@/game/progression';
+import GameIcon from '@/components/GameIcon';
 
 export { formatMoney };
 
@@ -183,15 +184,11 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // player's in-memory state or enable saving under another key.
       if (generation !== loadGenerationRef.current) return;
 
-      // Supabase is authoritative across devices. A newer local timestamp is
-      // treated only as a pending write-through operation interrupted by a
-      // reload; it is applied now and immediately uploaded by autosave.
-      const localIsPending = !!localSaved && savedStateTimestamp(localSaved) > savedStateTimestamp(cloudSaved);
-      if (cloudSaved && !localIsPending) {
+      // Supabase is authoritative for authenticated players. Never allow a
+      // different browser's local cache to roll back the account save.
+      if (cloudSaved) {
         applyLoadedState(cloudSaved);
         localStorage.setItem(localKey, JSON.stringify(cloudSaved));
-      } else if (localIsPending && localSaved) {
-        applyLoadedState(localSaved);
       } else if (cloudExistedOrEmpty && localSaved) {
         // First login after upgrading from local-only storage: migrate once.
         applyLoadedState(localSaved);
@@ -203,7 +200,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       // CRITICAL: only enable autosave if we successfully reached the cloud OR have local backup.
       // Otherwise we'd autosave default zeros and wipe the real cloud save.
-      cloudLoadOkRef.current = cloudExistedOrEmpty || !!cloudSaved;
+      cloudLoadOkRef.current = cloudExistedOrEmpty;
       readySaveKeyRef.current = localKey;
       setLoaded(true);
     };
@@ -854,7 +851,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const netWorth = calculateFinancialSnapshot({ balance, shopItems, accessoryItems, businesses, stockHoldings, cryptoHoldings, stockPrices, cryptoPrices }).netWorth;
   const progression = progressionFromXp(playerXp);
 
-  if (!loaded) return <div className="min-h-screen flex items-center justify-center bg-background"><span className="text-4xl animate-pulse">🎮</span></div>;
+  if (!loaded) return <div className="min-h-screen flex items-center justify-center bg-background"><GameIcon name="gamepad" size={44} themed className="animate-pulse" /></div>;
 
   return (
     <GameContext.Provider value={{
