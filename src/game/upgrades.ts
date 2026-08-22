@@ -51,7 +51,7 @@ export const defaultUpgrades: Upgrade[] = [
   {
     id: 'auto-tax',
     name: 'Автоуплата налогов',
-    description: 'Автоматически оплачивает налоги при достаточном балансе',
+    description: 'Сразу удерживает налог из каждого дохода бизнеса — задолженность больше не копится',
     emoji: '🧾',
     currentLevel: 0,
     maxLevel: 1,

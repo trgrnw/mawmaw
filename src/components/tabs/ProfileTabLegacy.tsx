@@ -21,6 +21,9 @@ const SHOWCASE_CATEGORIES_KEYS = [
   { id: 'planes', i18n: 'profile.cat_plane', icon: 'plane' },
   { id: 'ships', i18n: 'profile.cat_ship', icon: 'ship' },
   { id: 'nft', i18n: 'profile.cat_nft', icon: 'nft' },
+  { id: 'favorite_username', i18n: 'Любимый username', icon: 'tag' },
+  { id: 'favorite_plate', i18n: 'Любимый номер', icon: 'plate' },
+  { id: 'art', i18n: 'Любимая живопись', icon: 'art' },
 ];
 
 interface PlayerUsername {
@@ -160,41 +163,46 @@ const ProfileTabLegacy: React.FC<{ variant?: 'modern' | 'classic' }> = ({ varian
     { name: t('profile.stat_islands'), value: islands },
   ].filter(d => d.value > 0);
 
-  const getShowcaseItems = (catId: string) => {
+  const getShowcaseItems = (catId: string): Array<{ id: string; name: string; image?: string }> => {
+    if (catId === 'favorite_username') return activeUsernames.map(item => ({ id: `username:${item.id}`, name: `@${item.username}` }));
+    if (catId === 'favorite_plate') return licensePlates.map(item => ({ id: `plate:${item.id}`, name: item.text }));
     if (catId === 'nft') return accPurchased.filter(i => i.category === 'nft');
+    if (catId === 'art') return accPurchased.filter(i => i.category === 'art');
     return shopPurchased.filter(i => i.category === catId);
   };
 
   const getSelectedShowcase = (catId: string) => {
     const items = getShowcaseItems(catId);
-    if (items.length === 0) return null;
     const selectedId = showcaseSelections[catId];
-    if (selectedId) {
-      const found = items.find(i => i.id === selectedId);
-      if (found) return found;
-    }
-    return items[items.length - 1];
+    if (!selectedId) return null;
+    return items.find(i => i.id === selectedId) || null;
   };
 
-  // Sync showcase selections to DB so other players see the same selection.
-  // Builds a snapshot per category from current selections + owned items.
-  useEffect(() => {
+  const saveShowcaseSelection = async (catId: string, itemId: string) => {
     if (!user?.id || !showcaseLoaded) return;
+    const next = { ...showcaseSelections, [catId]: itemId };
+    setShowcaseSelections(next);
+    setOpenPicker(null);
     const snapshot = SHOWCASE_CATEGORIES_KEYS.map(cat => {
-      const sel = getSelectedShowcase(cat.id);
+      const selectedId = next[cat.id];
+      if (!selectedId) return null;
+      const sel = getShowcaseItems(cat.id).find(item => item.id === selectedId);
       if (!sel) return null;
       const data = [...shopItemsData, ...accessoryItemsData].find(d => d.id === sel.id);
-      return { cat: cat.id, id: sel.id, name: sel.name, image: data?.image || '' };
+      return { cat: cat.id, id: sel.id, name: sel.name, image: sel.image || data?.image || '' };
     }).filter(Boolean);
-    const handle = setTimeout(() => {
-      supabase.rpc('update_profile_extras', {
+    try {
+      const { error } = await supabase.rpc('update_profile_extras', {
         p_avatar_url: null,
         p_showcase: snapshot as any,
       });
-    }, 600);
-    return () => clearTimeout(handle);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showcaseSelections, shopItems, accessoryItems, showcaseLoaded, user?.id]);
+      if (error) throw error;
+      toast.success(itemId ? 'Витрина сохранена' : 'Предмет убран с витрины');
+    } catch (error: any) {
+      toast.error(error.message || 'Не удалось сохранить витрину');
+      setShowcaseSelections(showcaseSelections);
+    }
+  };
 
   const countByCategory = (cat: string) => shopPurchased.filter(i => i.category === cat).length;
   const nftCount = accPurchased.filter(i => i.category === 'nft').length;
@@ -359,12 +367,12 @@ const ProfileTabLegacy: React.FC<{ variant?: 'modern' | 'classic' }> = ({ varian
             const items = getShowcaseItems(cat.id);
             const isOpen = openPicker === cat.id;
 
-            const itemData = selected ? [...shopItemsData, ...accessoryItemsData].find(d => d.id === selected.id) : null;
+            const itemData = selected ? ([...shopItemsData, ...accessoryItemsData].find(d => d.id === selected.id) || selected) : null;
             const carPlate = (cat.id === 'cars' && selected) ? licensePlates.find(p => p.assignedTo === selected.id) : null;
             return (
               <div key={cat.id} className="relative min-w-0">
                 <button
-                  onClick={() => items.length > 1 ? setOpenPicker(isOpen ? null : cat.id) : undefined}
+                  onClick={() => items.length > 0 || selected ? setOpenPicker(isOpen ? null : cat.id) : undefined}
                   className={`w-full min-w-0 bg-card ${modern ? 'rounded-2xl hover:-translate-y-0.5 hover:shadow-lg' : 'rounded-xl'} border overflow-hidden text-center transition-all hover:border-primary/50`}
                 >
                   {itemData?.image ? (
@@ -388,19 +396,24 @@ const ProfileTabLegacy: React.FC<{ variant?: 'modern' | 'classic' }> = ({ varian
                       <p className="font-mono-game text-xs font-semibold text-foreground truncate">—</p>
                     </div>
                   )}
-                  {items.length > 1 && (
-                    <p className="text-[10px] text-primary py-1">{t('profile.select')}</p>
+                  {(items.length > 0 || selected) && (
+                    <p className="text-[10px] text-primary py-1">{selected ? t('profile.select') : 'Выставить'}</p>
                   )}
                 </button>
 
-                {isOpen && items.length > 1 && (
+                {isOpen && (items.length > 0 || selected) && (
                   <div className="absolute z-20 top-full mt-1 left-0 w-full min-w-0 bg-card border rounded-xl shadow-lg max-h-40 overflow-x-hidden overflow-y-auto">
+                    <button
+                      onClick={() => saveShowcaseSelection(cat.id, '')}
+                      className={`w-full border-b px-3 py-2 text-left text-xs hover:bg-muted/50 ${!showcaseSelections[cat.id] ? 'bg-primary/10' : ''}`}
+                    >
+                      — Ничего не выставлять
+                    </button>
                     {items.map(item => (
                       <button
                         key={item.id}
                         onClick={() => {
-                          setShowcaseSelections(prev => ({ ...prev, [cat.id]: item.id }));
-                          setOpenPicker(null);
+                          saveShowcaseSelection(cat.id, item.id);
                         }}
                         className={`w-full text-left px-3 py-2 text-xs hover:bg-muted/50 flex items-center gap-2 ${
                           showcaseSelections[cat.id] === item.id ? 'bg-primary/10' : ''

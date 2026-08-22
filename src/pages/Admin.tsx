@@ -68,7 +68,9 @@ const Admin: React.FC = () => {
     );
   }
 
-  // Authorization is enforced by the server-backed user_roles table and RLS.
+  // This is an in-game control center: it works as an internal screen in both
+  // the web build and a future Steam desktop wrapper. Authorization is always
+  // enforced by server-backed roles and RLS, never by knowing a secret URL.
   return <AdminLayout role={role!} />;
 };
 

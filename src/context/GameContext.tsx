@@ -387,6 +387,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [performSave]);
 
   // --- Income calculations ---
+  const hasAutoclicker = upgrades.some(u => u.id === 'autoclicker' && u.currentLevel > 0);
+  const hasAutoTax = upgrades.some(u => u.id === 'auto-tax' && u.currentLevel > 0);
   const hourlyIncomeRent = shopItems.filter(i => i.purchased && i.category === 'realestate')
     .reduce((sum, i) => {
       const data = shopItemsData.find(d => d.id === i.id);
@@ -396,7 +398,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const now = Date.now();
   const hourlyIncomeBusiness = businesses
     .filter(b => b.taxPaid || now < b.taxDueAt)
-    .reduce((sum, b) => sum + b.incomePerHour, 0);
+    .reduce((sum, b) => sum + b.incomePerHour * (hasAutoTax ? (1 - b.taxRate) : 1), 0);
 
   // Dividend income
   const hourlyIncomeDividends = stockHoldings.reduce((sum, h) => {
@@ -448,26 +450,33 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const refsData = useRef({ passiveIncome, clickPower, hourlyIncomeRent, hourlyIncomeBusiness, hourlyIncomeDividends });
   refsData.current = { passiveIncome, clickPower, hourlyIncomeRent, hourlyIncomeBusiness, hourlyIncomeDividends };
 
+  const lastPassiveTickRef = useRef(Date.now());
   useEffect(() => {
-    const interval = setInterval(() => {
+    const accrue = () => {
+      const tickNow = Date.now();
+      const elapsedSeconds = Math.min(12 * 3600, Math.max(0, (tickNow - lastPassiveTickRef.current) / 1000));
+      lastPassiveTickRef.current = tickNow;
       const { hourlyIncomeRent: rent, hourlyIncomeBusiness: biz, hourlyIncomeDividends: div } = refsData.current;
       if (rent > 0) {
-        const rentPerSec = rent / 3600;
-        setBalance(b => b + rentPerSec);
-        setTotalEarnedRent(t => t + rentPerSec);
+        const earned = rent / 3600 * elapsedSeconds;
+        setBalance(b => b + earned);
+        setTotalEarnedRent(t => t + earned);
       }
       if (biz > 0) {
-        const bizPerSec = biz / 3600;
-        setBalance(b => b + bizPerSec);
-        setTotalEarnedBusiness(t => t + bizPerSec);
+        const earned = biz / 3600 * elapsedSeconds;
+        setBalance(b => b + earned);
+        setTotalEarnedBusiness(t => t + earned);
       }
       if (div > 0) {
-        const divPerSec = div / 3600;
-        setBalance(b => b + divPerSec);
-        setTotalEarnedDividends(t => t + divPerSec);
+        const earned = div / 3600 * elapsedSeconds;
+        setBalance(b => b + earned);
+        setTotalEarnedDividends(t => t + earned);
       }
-    }, 1000);
-    return () => clearInterval(interval);
+    };
+    const interval = window.setInterval(accrue, 1000);
+    const onVisibility = () => { if (!document.hidden) accrue(); };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => { window.clearInterval(interval); document.removeEventListener('visibilitychange', onVisibility); };
   }, []);
 
   // --- Check pending_balance (market sales, offline income, bid escrow) every 5 seconds ---
@@ -487,6 +496,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // --- Offline income claim once on load + heartbeat presence ---
   const offlineClaimedRef = useRef(false);
+  useEffect(() => { offlineClaimedRef.current = false; }, [user?.id]);
   useEffect(() => {
     if (!user?.id || !loaded || offlineClaimedRef.current) return;
     offlineClaimedRef.current = true;
@@ -497,6 +507,11 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const amount = Number((data as any)?.amount) || 0;
         const seconds = Number((data as any)?.seconds) || 0;
         if (amount > 0) {
+          const claimed = await claimPending();
+          if (claimed !== 0) {
+            setBalance(current => Math.max(0, current + claimed));
+            if (claimed > 0) setTotalEarnedGems(current => current + claimed);
+          }
           const hours = Math.floor(seconds / 3600);
           const mins = Math.floor((seconds % 3600) / 60);
           window.dispatchEvent(new CustomEvent('offline-income', { detail: { amount, hours, mins } }));
@@ -505,11 +520,11 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
     const t = setTimeout(claim, 2000);
     return () => clearTimeout(t);
-  }, [user?.id, loaded]);
+  }, [user?.id, loaded, claimPending]);
 
   useEffect(() => {
     if (!user?.id || !loaded) return;
-    const beat = () => { (supabase.rpc('heartbeat_presence' as any) as any).then(() => {}); };
+    const beat = () => { if (!document.hidden) (supabase.rpc('heartbeat_presence' as any) as any).then(() => {}); };
     const interval = setInterval(beat, 60000);
     return () => clearInterval(interval);
   }, [user?.id, loaded]);
@@ -518,6 +533,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const interval = setInterval(() => {
       setBusinesses(prev => prev.map(b => {
+        if (hasAutoTax && Date.now() >= b.taxDueAt) {
+          return { ...b, taxPaid: true, taxDueAt: Date.now() + TAX_PERIOD_MS, taxAmount: 0 };
+        }
         if (b.taxPaid && Date.now() >= b.taxDueAt) {
           return { ...b, taxPaid: false, taxAmount: b.incomePerHour * 72 * BUSINESS_TAX_RATE };
         }
@@ -525,7 +543,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }));
     }, 10000);
     return () => clearInterval(interval);
-  }, []);
+  }, [hasAutoTax]);
 
   const addExperience = useCallback((amount: number) => {
     const gainedXp = Math.max(0, Math.floor(amount));
@@ -725,9 +743,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return true;
   }, [businesses, balance, persistImmediate]);
 
-  const hasAutoclicker = upgrades.some(u => u.id === 'autoclicker' && u.currentLevel > 0);
-  const hasAutoTax = upgrades.some(u => u.id === 'auto-tax' && u.currentLevel > 0);
-
   useEffect(() => {
     if (!loaded || !hasAutoclicker) return;
     const interval = window.setInterval(() => {
@@ -736,25 +751,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }, 1_000);
     return () => window.clearInterval(interval);
   }, [loaded, hasAutoclicker, clickPower]);
-
-  useEffect(() => {
-    if (!loaded || !hasAutoTax) return;
-    const interval = window.setInterval(() => {
-      const now = Date.now();
-      const due = calculateTotalTaxDue(latestState.current.businesses, now);
-      if (due <= 0 || latestState.current.balance < due) return;
-      const nextBalance = latestState.current.balance - due;
-      const nextBusinesses = latestState.current.businesses.map(b =>
-        !b.taxPaid && now >= b.taxDueAt
-          ? { ...b, taxPaid: true, taxDueAt: now + TAX_PERIOD_MS, taxAmount: 0 }
-          : b
-      );
-      persistImmediate({ balance: nextBalance, businesses: nextBusinesses });
-      setBalance(nextBalance);
-      setBusinesses(nextBusinesses);
-    }, 5_000);
-    return () => window.clearInterval(interval);
-  }, [loaded, hasAutoTax, persistImmediate]);
 
   // ── Investment functions ──
   const buyStock = useCallback((assetId: string, quantity: number): boolean => {
