@@ -12,7 +12,7 @@ import {
   Tag, CarFront, Anchor, Palmtree, Watch, Paintbrush, Cpu,
   Flag, CircleDollarSign, Droplets, Dog, Circle,
   Pill, Castle, Beer, MapPin, Box,
-  Sun, Eye, Hexagon, SquareStack, Star
+  Sun, Eye, Hexagon, SquareStack, Star, Bell, CheckCircle2, XCircle
 } from 'lucide-react';
 import type { LucideProps } from 'lucide-react';
 
@@ -33,6 +33,7 @@ const ICON_MAP: Record<string, React.FC<LucideProps>> = {
   'faq': HelpCircle,
   'admin': Shield,
   'login': KeyRound,
+  'notifications': Bell,
 
   // Earning
   'passive': Banknote,
@@ -174,6 +175,8 @@ const ICON_MAP: Record<string, React.FC<LucideProps>> = {
   'medal-3': Trophy,
   'star': Star,
   'eye': Eye,
+  'success': CheckCircle2,
+  'cancel': XCircle,
 };
 
 // Color presets for icons matching the game palette
@@ -210,6 +213,7 @@ const COLOR_PRESETS: Record<string, string> = {
   delete: 'hsl(var(--destructive))',
   crown: 'hsl(45 93% 47%)',
   star: 'hsl(45 93% 47%)',
+  notifications: 'hsl(271 81% 56%)',
 
   // Stock icons
   aapl: 'hsl(0 0% 60%)',

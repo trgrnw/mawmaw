@@ -6,6 +6,7 @@ import GameIcon from '@/components/GameIcon';
 const UpgradeTab: React.FC = () => {
   const { upgrades, buyUpgrade, balance, clickPower } = useGame();
   const { t } = useI18n();
+  const upgradeIcon = (id: string) => id === 'click-power' ? 'click' : id === 'autoclicker' ? 'gamepad' : id === 'auto-taxes' ? 'taxes' : 'upgrade';
 
   return (
     <div className="max-w-xl space-y-6">
@@ -43,7 +44,7 @@ const UpgradeTab: React.FC = () => {
             >
               <div className="flex items-start gap-4">
                 <div className="w-16 h-16 rounded-xl bg-muted flex items-center justify-center flex-shrink-0">
-                  <span className="text-3xl">{up.emoji}</span>
+                  <GameIcon name={upgradeIcon(up.id)} size={30} themed />
                 </div>
 
                 <div className="flex-1 min-w-0">

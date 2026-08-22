@@ -11,7 +11,20 @@ export function useCloudSave(userId: string | undefined) {
       p_state: gameState as unknown as Json,
       p_net_worth: netWorth,
     } as never);
-    if (error) throw error;
+    if (error) {
+      // Keep cross-device saves working even when the RPC migration has not
+      // reached a Supabase project yet. RLS still restricts this row to userId.
+      const { error: fallbackError } = await supabase
+        .from('game_saves')
+        .upsert({
+          user_id: userId,
+          game_state: gameState as unknown as Json,
+          net_worth: netWorth,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'user_id' });
+      if (fallbackError) throw fallbackError;
+      return;
+    }
     const result = data as unknown as { saved?: boolean; reason?: string } | null;
     if (result?.saved === false) throw new Error(result.reason || 'Cloud rejected the save');
   }, [userId]);
