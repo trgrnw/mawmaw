@@ -165,12 +165,12 @@ const GameLayout: React.FC = () => {
     <div className="flex min-h-screen w-full">
       <aside className="sidebar-gradient w-56 flex-shrink-0 flex flex-col p-3 gap-1.5 overflow-y-auto sticky top-0 h-screen">
         {/* Logo & Balance */}
-        <div className="px-3 py-4 mb-2 flex items-center gap-3">
-          <img src={assetUrl('/images/logo.png')} alt="Logo" className="w-10 h-10" />
-          <div className="min-w-0">
-            <h1 className="text-sm font-bold text-foreground leading-tight">Financial Clicker</h1>
-            <p className="text-[10px] text-foreground/50">Business Empire</p>
-          </div>
+        <div className="px-1 py-3 mb-2 flex justify-center">
+          <img
+            src={assetUrl('/images/logo-full.webp')}
+            alt="Financial Clicker: Business Empire"
+            className="h-auto max-h-28 w-full max-w-[190px] object-contain drop-shadow-[0_8px_16px_rgba(14,165,233,0.18)]"
+          />
         </div>
         <div className="px-3 -mt-3 mb-2">
           <p className="font-mono-game text-xs text-foreground/70">${formatMoney(balance)}</p>
