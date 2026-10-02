@@ -69,18 +69,11 @@ const AchievementsTab: React.FC = () => {
   const achievementStates = useMemo(() => {
     return achievements.map(a => {
       const current = getMetricValue(a.metric, gameState);
-      const progress = Math.min(1, current / a.threshold);
-      const unlocked = current >= a.threshold;
+      const unlocked = gameState.unlockedAchievements.includes(a.id);
+      const progress = unlocked ? 1 : Math.min(1, current / a.threshold);
       return { ...a, current, progress, unlocked };
     });
-  }, [
-    gameState.totalEarnedClick, gameState.totalEarnedBusiness, gameState.totalEarnedRent,
-    gameState.totalEarnedDividends, gameState.totalEarnedTrading, gameState.totalEarnedCrypto,
-    gameState.clickPower, gameState.balance, gameState.netWorth,
-    gameState.businesses, gameState.shopItems, gameState.accessoryItems,
-    gameState.stockHoldings, gameState.cryptoHoldings, gameState.upgrades,
-    gameState.stockPrices, gameState.cryptoPrices,
-  ]);
+  }, [gameState]);
 
   const filtered = useMemo(() => {
     return achievementStates.filter(a => {
@@ -200,14 +193,7 @@ const AchievementsTab: React.FC = () => {
                     })()}
                     {a.unlocked && <span className="ml-1.5 text-primary">✓</span>}
                   </h4>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 ${
-                    a.rarityPercent > 50 ? 'bg-muted text-muted-foreground' :
-                    a.rarityPercent > 10 ? 'bg-blue-500/10 text-blue-500' :
-                    a.rarityPercent > 1 ? 'bg-purple-500/10 text-purple-500' :
-                    'bg-amber-500/10 text-amber-500'
-                  }`}>
-                    {a.rarityPercent < 0.1 ? '<0.1' : a.rarityPercent}% {t('ach.players') || 'игроков'}
-                  </span>
+
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5">{(() => {
                   const prefix = a.id.replace(/_\d+$/, '');

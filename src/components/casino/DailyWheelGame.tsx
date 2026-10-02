@@ -1,3 +1,4 @@
+import { errorInfo } from '@/lib/errors';
 import React, { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
@@ -90,7 +91,8 @@ const DailyWheelGame: React.FC<Props> = ({ onBack }) => {
           duration: 6000,
         });
       }, 5200);
-    } catch (e: any) {
+    } catch (caught: unknown) {
+      const e = errorInfo(caught);
       setSpinning(false);
       toast.error(e.message || t('wheel.error'));
     }

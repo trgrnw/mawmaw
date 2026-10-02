@@ -51,12 +51,12 @@ const ForbesTab: React.FC = () => {
       setError('');
       try {
         if (scope === 'clans') {
-          const { data, error: queryError } = await supabase.from('clan_leaderboard').select('*').order('total_net_worth', { ascending: false }).limit(100);
+          const { data, error: queryError } = await supabase.rpc('get_clan_leaderboard');
           if (queryError) throw queryError;
-          setClans((data as any) || []);
+          setClans(data || []);
         } else if (scope === 'players') {
           const { data, error: queryError } = await withTimeout(
-            supabase.rpc('get_forbes_players' as any),
+            supabase.rpc('get_forbes_players'),
             8_000,
             t('forbes.timeout'),
           );
@@ -76,7 +76,7 @@ const ForbesTab: React.FC = () => {
     fetchData();
     const interval = setInterval(fetchData, 5000);
     return () => clearInterval(interval);
-  }, [scope, period, region, refreshKey]);
+  }, [scope, period, region, refreshKey, t]);
 
   return (
     <div className="max-w-2xl mx-auto space-y-4">

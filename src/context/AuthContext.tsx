@@ -87,7 +87,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (data) {
       setUsername(data.username || 'Player');
       setAvatarEmoji(data.avatar_emoji || '👤');
-      setAvatarUrl((data as any).avatar_url || '');
+      setAvatarUrl(data.avatar_url || '');
     }
   };
 
@@ -100,9 +100,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         emailRedirectTo: new URL(import.meta.env.BASE_URL, window.location.origin).toString(),
       },
     });
-    if (!error && localStorage.getItem('gameState_guest')) {
-      localStorage.setItem('pendingGuestProgressMigration', '1');
-    }
     return { error: error?.message ?? null };
   };
 
@@ -139,7 +136,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const changeNickname = async (nickname: string) => {
     if (!user) return { error: 'Authentication required' };
-    const { data, error } = await supabase.rpc('change_profile_nickname' as any, {
+    const { data, error } = await supabase.rpc('change_profile_nickname', {
       p_nickname: nickname,
     });
     if (error) return { error: error.message };

@@ -21,7 +21,7 @@ export function generateUpgradeLevels(): UpgradeLevel[] {
     else if (totalBonus < 3500) bonus = 100;
     else bonus = 200;
 
-    cost = cost * 1.35 + bonus * 10;
+    cost = Math.min(50_000_000, cost * 1.10 + bonus * 10);
   }
 
   return levels;
@@ -50,8 +50,8 @@ export const defaultUpgrades: Upgrade[] = [
   },
   {
     id: 'auto-tax',
-    name: 'Автоуплата налогов',
-    description: 'Сразу удерживает налог из каждого дохода бизнеса — задолженность больше не копится',
+    name: 'Налоговая оптимизация',
+    description: 'Увеличивает чистый доход работающих предприятий на 2%',
     emoji: '🧾',
     currentLevel: 0,
     maxLevel: 1,

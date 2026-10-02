@@ -11,20 +11,7 @@ export function useCloudSave(userId: string | undefined) {
       p_state: gameState as unknown as Json,
       p_net_worth: netWorth,
     } as never);
-    if (error) {
-      // Keep cross-device saves working even when the RPC migration has not
-      // reached a Supabase project yet. RLS still restricts this row to userId.
-      const { error: fallbackError } = await supabase
-        .from('game_saves')
-        .upsert({
-          user_id: userId,
-          game_state: gameState as unknown as Json,
-          net_worth: netWorth,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'user_id' });
-      if (fallbackError) throw fallbackError;
-      return;
-    }
+    if (error) throw error;
     const result = data as unknown as { saved?: boolean; reason?: string } | null;
     if (result?.saved === false) throw new Error(result.reason || 'Cloud rejected the save');
   }, [userId]);
@@ -57,18 +44,6 @@ export function useCloudSave(userId: string | undefined) {
     if (!data) return null;
 
     const state = (data.game_state as Record<string, unknown>) || {};
-    const pending = Number((data as any).pending_balance) || 0;
-
-    if (pending !== 0) {
-      const currentBalance = Number(state.balance) || 0;
-      state.balance = currentBalance + pending;
-      // Atomically reset pending only if it didn't change in the meantime
-      await supabase.from('game_saves')
-        .update({ pending_balance: 0 } as any)
-        .eq('user_id', userId)
-        .eq('pending_balance', pending);
-    }
-
     return state;
   }, [userId]);
 
@@ -77,7 +52,7 @@ export function useCloudSave(userId: string | undefined) {
     if (!userId) return 0;
     const { data, error } = await supabase.rpc('claim_pending_balance');
     if (error) return 0;
-    return Number((data as any)?.amount) || 0;
+    return Number((data as {amount?: number})?.amount) || 0;
   }, [userId]);
 
   return { saveToCloud: forceSave, loadFromCloud, forceSave, forceSaveNow, claimPending };

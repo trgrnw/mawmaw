@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import type { Tables } from '@/integrations/supabase/types';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -20,10 +21,10 @@ const AdminTransactionsTab: React.FC = () => {
   const [selected, setSelected] = useState<ProfileLite | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const [marketTx, setMarketTx] = useState<any[]>([]);
-  const [casinoTx, setCasinoTx] = useState<any[]>([]);
-  const [adminTx, setAdminTx] = useState<any[]>([]);
-  const [netWorthTx, setNetWorthTx] = useState<any[]>([]);
+  const [marketTx, setMarketTx] = useState<Tables<'market_listings'>[]>([]);
+  const [casinoTx, setCasinoTx] = useState<Tables<'casino_bets'>[]>([]);
+  const [adminTx, setAdminTx] = useState<Tables<'admin_logs'>[]>([]);
+  const [netWorthTx, setNetWorthTx] = useState<Tables<'net_worth_history'>[]>([]);
 
   useEffect(() => {
     if (!search) { setProfiles([]); return; }
@@ -99,7 +100,8 @@ const AdminTransactionsTab: React.FC = () => {
                 <Card><CardContent className="p-0 divide-y max-h-[500px] overflow-y-auto">
                   {marketTx.length === 0 ? <p className="p-4 text-muted-foreground">Нет операций</p> : marketTx.map(t => {
                     const isSeller = t.seller_id === selected.user_id;
-                    const item = t.item_data?.username ? `@${t.item_data.username}` : t.item_data?.text || t.item_type;
+                    const data = t.item_data as Record<string, unknown>;
+                    const item = data?.username ? `@${String(data.username)}` : String(data?.text || t.item_type);
                     return (
                       <div key={t.id} className="p-3 flex justify-between items-start">
                         <div>

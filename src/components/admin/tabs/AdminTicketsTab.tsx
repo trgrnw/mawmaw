@@ -51,14 +51,14 @@ const AdminTicketsTab: React.FC = () => {
       .eq('status', filter)
       .order('updated_at', { ascending: false })
       .limit(200);
-    const list = (data as any) || [];
+    const list = (data as Ticket[]) || [];
     setTickets(list);
     // Resolve usernames
     const ids = Array.from(new Set(list.map((t: Ticket) => t.user_id))) as string[];
     if (ids.length) {
       const { data: profs } = await supabase.from('profiles').select('user_id, username').in('user_id', ids);
       const map: Record<string, string> = {};
-      (profs || []).forEach((p: any) => { map[p.user_id] = p.username; });
+      (profs || []).forEach((p) => { map[p.user_id] = p.username; });
       setUsernameMap(map);
     }
     setLoading(false);
@@ -68,7 +68,7 @@ const AdminTicketsTab: React.FC = () => {
 
   const loadMsgs = useCallback(async (id: string) => {
     const { data } = await supabase.from('ticket_messages').select('*').eq('ticket_id', id).order('created_at');
-    setMessages((data as any) || []);
+    setMessages(data || []);
   }, []);
 
   useEffect(() => {

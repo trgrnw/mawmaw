@@ -24,8 +24,10 @@ interface CoinBet {
   profit: number;
 }
 
+type CasinoResponse = { error?: string; round?: CoinFlipRound; bets?: CoinBet[]; history?: string[]; completed_round?: {id: string; result: string}; completed_bets?: CoinBet[] };
+
 const CoinFlipGame: React.FC<{ onBack: () => void }> = ({ onBack }) => {
-  const { balance, spendBalance, addBalance } = useGame();
+  const { balance, syncProgress } = useGame();
   const { user, username } = useAuth();
   const { t } = useI18n();
 
@@ -46,9 +48,12 @@ const CoinFlipGame: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   const winProcessedRef = useRef<Set<string>>(new Set());
   const resultTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const callCasino = useCallback(async (action: string, params: Record<string, unknown> = {}) => {
+  const callCasino = useCallback(async (action: string, params: Record<string, unknown> = {}): Promise<CasinoResponse> => {
     try {
-      const data = await invokeCasino(action, params);
+      const mutation = !action.startsWith('get_');
+      if (mutation) await syncProgress();
+      const data = await invokeCasino<CasinoResponse>(action, params);
+      if (mutation) await syncProgress().catch(() => undefined);
       setApiError('');
       return data;
     } catch (error) {
@@ -56,7 +61,7 @@ const CoinFlipGame: React.FC<{ onBack: () => void }> = ({ onBack }) => {
       setApiError(message);
       return { error: message };
     }
-  }, []);
+  }, [syncProgress]);
 
   // Poll for round state
   useEffect(() => {
@@ -64,7 +69,7 @@ const CoinFlipGame: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     let active = true;
     const poll = async () => {
       const data = await callCasino('get_coinflip_round');
-      if (!active || !data) return;
+      if (!active || !data || data.error) return;
 
       // Handle completed round result (server sends it separately)
       if (data.completed_round && data.completed_round.result) {
@@ -79,9 +84,6 @@ const CoinFlipGame: React.FC<{ onBack: () => void }> = ({ onBack }) => {
           if (myBet) {
             const won = myBet.result === 'won';
             setMyBetResult(won ? 'won' : 'lost');
-            if (won) {
-              addBalance(myBet.bet_amount + myBet.profit, Math.max(0, myBet.profit));
-            }
           }
 
           // Clear result after 4s
@@ -109,7 +111,7 @@ const CoinFlipGame: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     poll();
     const interval = setInterval(poll, 1000);
     return () => { active = false; clearInterval(interval); };
-  }, [user, callCasino, addBalance, showResult]);
+  }, [user, callCasino, showResult]);
 
   // Countdown
   useEffect(() => {
@@ -124,16 +126,12 @@ const CoinFlipGame: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   }, [round]);
 
   const placeBet = async () => {
-    if (!round || round.status !== 'waiting' || betAmount < 100 || !spendBalance(betAmount)) return;
+    if (!round || round.status !== 'waiting' || loading || !Number.isFinite(betAmount) || betAmount < 100 || betAmount > 1_000_000 || betAmount > balance) return;
     setLoading(true);
     const data = await callCasino('place_coinflip_bet', {
       round_id: round.id, bet_amount: betAmount, choice, username: username || 'Player',
     });
-    if (data?.error) {
-      addBalance(betAmount);
-    } else {
-      setMyBetPlaced(true);
-    }
+    if (!data?.error) setMyBetPlaced(true);
     setLoading(false);
   };
 
@@ -151,7 +149,7 @@ const CoinFlipGame: React.FC<{ onBack: () => void }> = ({ onBack }) => {
       <button onClick={onBack} className="text-sm text-muted-foreground hover:text-foreground">← {t('casino.back')}</button>
       {apiError && (
         <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
-          Казино недоступно: {apiError}. Проверьте установку Supabase backend.
+          Казино временно недоступно: {apiError}. Повторите попытку.
         </div>
       )}
 

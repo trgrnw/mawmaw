@@ -1,3 +1,4 @@
+import { errorInfo } from '@/lib/errors';
 import React, { useState, useEffect } from 'react';
 import { useGame, formatMoney } from '@/context/GameContext';
 import { useAuth } from '@/context/AuthContext';
@@ -82,12 +83,12 @@ const ProfileTabLegacy: React.FC<{ variant?: 'modern' | 'classic' }> = ({ varian
       if (profile?.player_id) setPlayerId(profile.player_id as number);
       if (profile) {
         setCustomization({
-          banner_url: (profile as any).banner_url || 'default',
-          frame_id: (profile as any).frame_id || 'none',
-          status_text: (profile as any).status_text || '',
+          banner_url: profile.banner_url || 'default',
+          frame_id: profile.frame_id || 'none',
+          status_text: profile.status_text || '',
         });
         // Reconstruct selections from showcase_items
-        const items = (profile as any).showcase_items as Array<{ cat: string; id: string }> | null;
+        const items = profile.showcase_items as Array<{ cat: string; id: string }> | null;
         if (Array.isArray(items)) {
           const sel: Record<string, string> = {};
           items.forEach(it => { if (it?.cat && it?.id) sel[it.cat] = it.id; });
@@ -117,12 +118,12 @@ const ProfileTabLegacy: React.FC<{ variant?: 'modern' | 'classic' }> = ({ varian
     setSearchResults([]);
     try {
       const { data: stats, error } = await withTimeout(
-        supabase.rpc('search_public_players' as any, { p_query: q }),
+        supabase.rpc('search_public_players', { p_query: q }),
         8_000,
         t('profile.search_timeout'),
       );
       if (error) throw error;
-      const mapped = ((stats as any[]) || []).map((s: any) => ({
+      const mapped = (stats || []).map((s) => ({
       user_id: s.user_id as string,
       username: (s.username as string) || 'Player',
       avatar_emoji: (s.avatar_emoji as string) || '👤',
@@ -194,11 +195,12 @@ const ProfileTabLegacy: React.FC<{ variant?: 'modern' | 'classic' }> = ({ varian
     try {
       const { error } = await supabase.rpc('update_profile_extras', {
         p_avatar_url: null,
-        p_showcase: snapshot as any,
+        p_showcase: snapshot,
       });
       if (error) throw error;
       toast.success(itemId ? 'Витрина сохранена' : 'Предмет убран с витрины');
-    } catch (error: any) {
+    } catch (caught: unknown) {
+      const error = errorInfo(caught);
       toast.error(error.message || 'Не удалось сохранить витрину');
       setShowcaseSelections(showcaseSelections);
     }

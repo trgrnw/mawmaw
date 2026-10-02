@@ -1,4 +1,5 @@
 import { businessCategories } from '@/data/businessNames';
+import { businessMergers } from '@/data/mergerData';
 import type { Business, EntrepreneurLicense } from './types';
 
 export const ENTREPRENEUR_LICENSE_COST = 2_500;
@@ -42,7 +43,10 @@ const labels: Record<string, [string, string, string]> = {
 };
 
 export function getBusinessPlan(categoryId: string): BusinessPlan {
-  const category = businessCategories.find(item => item.id === categoryId)!;
+  const ordinary = businessCategories.find(item => item.id === categoryId);
+  const merger = businessMergers.find(item => item.id === categoryId);
+  if (!ordinary && !merger) throw new Error('Unknown business category');
+  const category = ordinary || { cost: merger!.resultIncomePerHour * 20, baseIncomePerHour: merger!.resultIncomePerHour };
   const scale = category.cost;
   const names = labels[categoryId] || ['Построить здание предприятия', 'Закупить мебель и оборудование', 'Организовать технику и логистику'];
   const employeesRequired = Math.max(2, Math.round(3 + Math.log10(Math.max(10, scale)) * 2));

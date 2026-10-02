@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import type { Tables } from '@/integrations/supabase/types';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 const AdminCasinoTab: React.FC = () => {
   const [stats, setStats] = useState({ totalBets: 0, totalWins: 0, totalLosses: 0, totalProfit: 0 });
-  const [recentBets, setRecentBets] = useState<any[]>([]);
+  const [recentBets, setRecentBets] = useState<Tables<'casino_bets'>[]>([]);
 
   useEffect(() => {
     loadStats();
@@ -18,8 +19,8 @@ const AdminCasinoTab: React.FC = () => {
       .limit(50);
 
     if (bets) {
-      const wins = bets.filter(b => b.result === 'win').length;
-      const losses = bets.filter(b => b.result === 'loss').length;
+      const wins = bets.filter(b => b.result === 'won').length;
+      const losses = bets.filter(b => b.result === 'lost').length;
       const profit = bets.reduce((sum, b) => sum + (b.profit || 0), 0);
       setStats({ totalBets: bets.length, totalWins: wins, totalLosses: losses, totalProfit: profit });
       setRecentBets(bets.slice(0, 20));
@@ -73,8 +74,8 @@ const AdminCasinoTab: React.FC = () => {
                 </div>
                 <div className="text-right">
                   <p className="text-sm font-mono">${bet.bet_amount.toLocaleString()}</p>
-                  <p className={`text-xs font-medium ${bet.result === 'win' ? 'text-green-500' : 'text-red-500'}`}>
-                    {bet.result === 'win' ? `+$${bet.profit?.toLocaleString()}` : bet.result}
+                  <p className={`text-xs font-medium ${bet.result === 'won' ? 'text-green-500' : 'text-red-500'}`}>
+                    {bet.result === 'won' ? `+$${bet.profit?.toLocaleString()}` : bet.result}
                   </p>
                 </div>
               </div>

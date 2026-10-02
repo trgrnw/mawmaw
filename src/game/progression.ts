@@ -6,9 +6,10 @@ export function totalXpForLevel(level: number): number {
 }
 
 export function levelFromXp(xp: number): number {
-  const safeXp = Math.max(0, Math.floor(xp));
-  let level = 1;
+  const safeXp = Math.min(1e9, Math.max(0, Math.floor(Number.isFinite(xp) ? xp : 0)));
+  let level = Math.max(1, Math.floor(Math.pow(safeXp / 100, 1 / 1.65)) + 1);
   while (totalXpForLevel(level + 1) <= safeXp) level += 1;
+  while (totalXpForLevel(level) > safeXp && level > 1) level -= 1;
   return level;
 }
 
@@ -25,7 +26,7 @@ export function rewardsBetweenLevels(previousLevel: number, nextLevel: number): 
 }
 
 export function progressionFromXp(xp: number) {
-  const playerXp = Math.max(0, Math.floor(xp));
+  const playerXp = Math.min(1e9, Math.max(0, Math.floor(Number.isFinite(xp) ? xp : 0)));
   const level = levelFromXp(playerXp);
   const levelStartXp = totalXpForLevel(level);
   const nextLevelXp = totalXpForLevel(level + 1);

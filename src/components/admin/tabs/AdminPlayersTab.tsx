@@ -53,30 +53,9 @@ const AdminPlayersTab: React.FC = () => {
     const amount = parseFloat(newBalance);
     if (isNaN(amount)) return;
 
-    // Get current save
-    const { data: save } = await supabase
-      .from('game_saves')
-      .select('game_state')
-      .eq('user_id', userId)
-      .single();
-
-    if (save) {
-      const gameState = save.game_state as any;
-      gameState.balance = amount;
-      
-      await supabase
-        .from('game_saves')
-        .update({ game_state: gameState, net_worth: amount })
-        .eq('user_id', userId);
-
-      // Log action
-      await supabase.from('admin_logs').insert({
-        admin_user_id: (await supabase.auth.getUser()).data.user?.id,
-        action: 'change_balance',
-        target_user_id: userId,
-        details: { new_balance: amount },
-      });
-    }
+    if (!Number.isFinite(amount) || amount < 0) return;
+    const { error } = await supabase.rpc('admin_set_player_balance', { p_user_id: userId, p_balance: amount });
+    if (error) { alert(error.message); return; }
 
     setEditingBalance(null);
     setNewBalance('');
@@ -86,24 +65,15 @@ const AdminPlayersTab: React.FC = () => {
   const handleResetProgress = async (userId: string, username: string) => {
     if (!confirm(`Сбросить прогресс игрока ${username}?`)) return;
 
-    await supabase
-      .from('game_saves')
-      .update({ game_state: {}, net_worth: 0 })
-      .eq('user_id', userId);
-
-    await supabase.from('admin_logs').insert({
-      admin_user_id: (await supabase.auth.getUser()).data.user?.id,
-      action: 'reset_progress',
-      target_user_id: userId,
-      details: { username },
-    });
+    const { error } = await supabase.rpc('admin_reset_player', { p_user_id: userId });
+    if (error) { alert(error.message); return; }
 
     loadPlayers();
   };
 
   const handleAdjustBalance = async (userId: string) => {
     const delta = parseFloat(adjustDelta);
-    if (isNaN(delta) || delta === 0) {
+    if (!Number.isFinite(delta) || delta === 0) {
       alert('Введите ненулевую сумму (положительную чтобы добавить, отрицательную чтобы вычесть)');
       return;
     }

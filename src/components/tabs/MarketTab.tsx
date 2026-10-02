@@ -1,4 +1,6 @@
+import { errorInfo } from '@/lib/errors';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import type { Tables } from '@/integrations/supabase/types';
 import { useGame, formatMoney } from '@/context/GameContext';
 import { useAuth } from '@/context/AuthContext';
 import { useI18n } from '@/i18n/I18nContext';
@@ -7,12 +9,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import GameIcon from '@/components/GameIcon';
 import LicensePlate, { type LicensePlateData, PLATE_COUNTRIES } from '@/components/LicensePlate';
 
+interface MarketItemData { username_id?: string; username?: string; plate_id?: string; text?: string; country?: string; isCustom?: boolean }
 interface MarketListing {
   id: string;
   seller_id: string;
   buyer_id?: string | null;
   item_type: 'username' | 'license_plate';
-  item_data: Record<string, unknown>;
+  item_data: MarketItemData;
   price: number;
   status: string;
   created_at: string;
@@ -34,7 +37,7 @@ type SortType = 'newest' | 'oldest' | 'cheapest' | 'expensive' | 'ending_soon';
 const AUCTION_DURATIONS = [1, 6, 12, 24, 48];
 
 const MarketTab: React.FC = () => {
-  const { balance, replaceBalance, addLicensePlate, removePlate, licensePlates } = useGame();
+  const { balance, syncProgress, licensePlates } = useGame();
   const { user } = useAuth();
   const { t } = useI18n();
 
@@ -80,7 +83,7 @@ const MarketTab: React.FC = () => {
       .limit(300);
 
     // History (mine: sold + cancelled where I'm seller or buyer)
-    let hdata: any[] = [];
+    let hdata: Tables<'market_listings'>[] = [];
     if (user?.id) {
       const { data } = await supabase
         .from('market_listings')
@@ -90,15 +93,7 @@ const MarketTab: React.FC = () => {
         .order('sold_at', { ascending: false, nullsFirst: false })
         .limit(100);
       hdata = data || [];
-      hdata
-        .filter(row => row.status === 'sold' && row.buyer_id === user.id && row.item_type === 'license_plate')
-        .forEach(row => {
-          const plate = row.item_data as Record<string, unknown>;
-          addLicensePlate({
-            id: String(plate.plate_id), text: String(plate.text), country: String(plate.country),
-            assignedTo: null, isCustom: Boolean(plate.isCustom),
-          });
-        });
+
     }
 
     // Favorites
@@ -107,31 +102,32 @@ const MarketTab: React.FC = () => {
         .from('market_favorites')
         .select('listing_id')
         .eq('user_id', user.id);
-      setFavorites(new Set((fdata || []).map((f: any) => f.listing_id)));
+      setFavorites(new Set((fdata || []).map((f) => f.listing_id)));
     }
 
     // Resolve seller usernames
     const allRows = [...(ldata || []), ...hdata];
-    const sellerIds = [...new Set(allRows.map((d: any) => d.seller_id))];
+    const sellerIds = [...new Set(allRows.map((d) => d.seller_id))];
     const profileMap = new Map<string, string>();
     if (sellerIds.length) {
       const { data: profiles } = await supabase
         .from('profiles')
         .select('user_id, username')
         .in('user_id', sellerIds);
-      (profiles || []).forEach((p: any) => profileMap.set(p.user_id, p.username));
+      (profiles || []).forEach((p) => profileMap.set(p.user_id, p.username));
     }
 
-    const enrich = (d: any): MarketListing => ({
+    const enrich = (d: Tables<'market_listings'>): MarketListing => ({
       ...d,
-      item_data: d.item_data as Record<string, unknown>,
+      item_type: d.item_type as MarketListing['item_type'], listing_kind: d.listing_kind as MarketListing['listing_kind'],
+      item_data: d.item_data as MarketItemData,
       seller_username: profileMap.get(d.seller_id) || 'Player',
     });
     setListings((ldata || []).map(enrich));
     setHistory(hdata.map(enrich));
     setLoading(false);
     initialLoadDone.current = true;
-  }, [user?.id, addLicensePlate]);
+  }, [user?.id]);
 
   useEffect(() => { loadAll(); }, [loadAll]);
 
@@ -139,7 +135,7 @@ const MarketTab: React.FC = () => {
   useEffect(() => {
     const i1 = setInterval(loadAll, 4000);
     const i2 = setInterval(() => {
-      supabase.rpc('finalize_expired_auctions' as any).then(() => {});
+      supabase.rpc('finalize_expired_auctions').then(() => {});
     }, 15000);
     return () => { clearInterval(i1); clearInterval(i2); };
   }, [loadAll]);
@@ -165,7 +161,7 @@ const MarketTab: React.FC = () => {
         if (filterType !== 'all' && l.item_type !== filterType) return false;
         if (searchQuery.trim()) {
           const q = searchQuery.toLowerCase();
-          const data = l.item_data as any;
+          const data = l.item_data;
           const text = l.item_type === 'username' ? (data.username || '') : (data.text || '');
           return String(text).toLowerCase().includes(q);
         }
@@ -183,70 +179,29 @@ const MarketTab: React.FC = () => {
   })();
 
   // ── Actions ──
-  const handleListFixed = async () => {
-    if (!user?.id || !selectedSellId || !sellPrice) return;
-    const price = parseFloat(sellPrice);
-    if (isNaN(price) || price <= 0) return;
+  const handleList = async (auction: boolean) => {
+    if (!user?.id || !selectedSellId || !sellOpen || busy) return;
+    const price = Number(sellPrice);
+    if (!Number.isFinite(price) || price <= 0) return;
     setBusy(true); setErrorMsg(null);
     try {
-      let item_data: any;
-      if (sellOpen === 'username') {
-        const u = myUsernames.find(x => x.id === selectedSellId);
-        if (!u) return;
-        item_data = { username_id: u.id, username: u.username };
-        await supabase.from('player_usernames').update({ is_active: false }).eq('id', u.id);
-      } else {
-        const p = licensePlates.find(x => x.id === selectedSellId);
-        if (!p) return;
-        item_data = { plate_id: p.id, text: p.text, country: p.country, isCustom: p.isCustom };
-      }
-      const { error } = await supabase.from('market_listings').insert({
-        seller_id: user.id,
-        item_type: sellOpen!,
-        item_data,
-        price,
-        listing_kind: 'fixed',
-      } as any);
-      if (error) throw error;
-      if (sellOpen === 'license_plate') removePlate(selectedSellId);
-      closeSell();
-      loadAll();
-    } catch (e: any) {
-      setErrorMsg(e.message || 'Error');
-    } finally { setBusy(false); }
-  };
-
-  const handleListAuction = async () => {
-    if (!user?.id || !selectedSellId || !sellPrice) return;
-    const minBid = parseFloat(sellPrice);
-    if (isNaN(minBid) || minBid <= 0) return;
-    setBusy(true); setErrorMsg(null);
-    try {
-      let item_data: any;
-      if (sellOpen === 'username') {
-        const u = myUsernames.find(x => x.id === selectedSellId);
-        if (!u) return;
-        item_data = { username_id: u.id, username: u.username };
-        await supabase.from('player_usernames').update({ is_active: false }).eq('id', u.id);
-      } else {
-        const p = licensePlates.find(x => x.id === selectedSellId);
-        if (!p) return;
-        item_data = { plate_id: p.id, text: p.text, country: p.country, isCustom: p.isCustom };
-      }
-      const { error } = await supabase.rpc('create_auction_listing' as any, {
-        p_item_type: sellOpen,
-        p_item_data: item_data,
-        p_min_bid: minBid,
-        p_duration_hours: auctionDuration,
+      await syncProgress();
+      const itemData = sellOpen === 'username'
+        ? { username_id: selectedSellId }
+        : { plate_id: selectedSellId };
+      const { error } = await supabase.rpc('create_market_listing', {
+        p_item_type: sellOpen, p_item_data: itemData, p_price: price,
+        p_duration_hours: auction ? auctionDuration : null,
       });
       if (error) throw error;
-      if (sellOpen === 'license_plate') removePlate(selectedSellId);
-      closeSell();
-      loadAll();
-    } catch (e: any) {
-      setErrorMsg(e.message || 'Error');
+      await syncProgress();
+      closeSell(); await loadAll();
+    } catch (error) {
+      setErrorMsg(error instanceof Error ? error.message : String((error as {message?: string}).message || 'Error'));
     } finally { setBusy(false); }
   };
+  const handleListFixed = () => handleList(false);
+  const handleListAuction = () => handleList(true);
 
   const closeSell = () => {
     setSellOpen(null); setSellPrice(''); setSelectedSellId(null);
@@ -259,22 +214,14 @@ const MarketTab: React.FC = () => {
     if (balance < selectedListing.price) return;
     setBusy(true); setErrorMsg(null);
     try {
-      const { data, error } = await supabase.rpc('buy_market_listing', { p_listing_id: selectedListing.id });
+      await syncProgress();
+      const { error } = await supabase.rpc('buy_market_listing', { p_listing_id: selectedListing.id });
       if (error) throw error;
-      const result = data as Record<string, unknown> | null;
-      const newBalance = Number(result?.new_balance);
-      if (!Number.isFinite(newBalance)) throw new Error('Server returned an invalid balance');
-      replaceBalance(newBalance);
-      if (selectedListing.item_type === 'license_plate') {
-        const d = selectedListing.item_data as any;
-        addLicensePlate({
-          id: `plate-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-          text: d.text, country: d.country, assignedTo: null, isCustom: d.isCustom || false,
-        });
-      }
+      await syncProgress();
       setBuyDialogOpen(false); setSelectedListing(null);
       loadAll();
-    } catch (e: any) {
+    } catch (caught: unknown) {
+      const e = errorInfo(caught);
       setErrorMsg(e.message || 'Error');
     } finally { setBusy(false); }
   };
@@ -282,37 +229,32 @@ const MarketTab: React.FC = () => {
   const handleBid = async () => {
     if (!user?.id || !selectedListing || busy) return;
     const amt = parseFloat(bidAmount);
-    if (isNaN(amt) || amt <= 0) return;
+    if (!Number.isFinite(amt) || amt <= 0) return;
     setBusy(true); setErrorMsg(null);
     try {
-      const { error } = await supabase.rpc('place_bid' as any, { p_listing_id: selectedListing.id, p_amount: amt });
+      await syncProgress();
+      const { error } = await supabase.rpc('place_bid', { p_listing_id: selectedListing.id, p_amount: amt });
       if (error) throw error;
+      await syncProgress();
       setBidDialogOpen(false); setSelectedListing(null); setBidAmount('');
       loadAll();
-    } catch (e: any) {
+    } catch (caught: unknown) {
+      const e = errorInfo(caught);
       setErrorMsg(e.message || 'Error');
     } finally { setBusy(false); }
   };
 
-  const handleCancel = async (l: MarketListing) => {
-    if (l.listing_kind === 'auction') {
-      const { error } = await supabase.rpc('cancel_auction' as any, { p_listing_id: l.id });
-      if (error) { alert(error.message); return; }
-    } else {
-      const { error } = await supabase.from('market_listings').update({ status: 'cancelled' }).eq('id', l.id);
-      if (error) { setErrorMsg(error.message); return; }
-      if (l.item_type === 'username') {
-        await supabase.from('player_usernames').update({ is_active: false }).eq('id', (l.item_data as any).username_id);
-      }
-    }
-    if (l.item_type === 'license_plate') {
-      const plate = l.item_data as any;
-      addLicensePlate({
-        id: String(plate.plate_id), text: String(plate.text), country: String(plate.country),
-        assignedTo: null, isCustom: Boolean(plate.isCustom),
-      });
-    }
-    loadAll();
+  const handleCancel = async (listing: MarketListing) => {
+    if (busy) return;
+    setBusy(true); setErrorMsg(null);
+    try {
+      await syncProgress();
+      const { error } = await supabase.rpc('cancel_auction', { p_listing_id: listing.id });
+      if (error) throw error;
+      await syncProgress(); await loadAll();
+    } catch (error) {
+      setErrorMsg(String((error as {message?: string}).message || 'Error'));
+    } finally { setBusy(false); }
   };
 
   const toggleFavorite = async (listingId: string) => {
@@ -321,7 +263,7 @@ const MarketTab: React.FC = () => {
       await supabase.from('market_favorites').delete().eq('user_id', user.id).eq('listing_id', listingId);
       setFavorites(s => { const n = new Set(s); n.delete(listingId); return n; });
     } else {
-      await supabase.from('market_favorites').insert({ user_id: user.id, listing_id: listingId } as any);
+      await supabase.from('market_favorites').insert({ user_id: user.id, listing_id: listingId });
       setFavorites(s => new Set(s).add(listingId));
     }
   };
@@ -334,7 +276,7 @@ const MarketTab: React.FC = () => {
     setBidDialogOpen(true); setErrorMsg(null);
     const { data } = await supabase.from('market_bids').select('bidder_name, amount, created_at')
       .eq('listing_id', l.id).order('created_at', { ascending: false }).limit(20);
-    setBidsHistory((data as any) || []);
+    setBidsHistory((data) || []);
   };
 
   // ── Tabs ──
@@ -580,7 +522,7 @@ const MarketTab: React.FC = () => {
               <div className="space-y-2">
                 <Row label="Текущая ставка" value={selectedListing.current_bid ? `$${formatMoney(selectedListing.current_bid)}` : 'Нет ставок'} bold />
                 <Row label="Мин. след. ставка" value={`$${formatMoney(Math.max(selectedListing.min_bid || 0, (selectedListing.current_bid ?? 0) + (selectedListing.current_bid ? Math.max(selectedListing.current_bid * 0.05, 1) : 0)))}`} />
-                <Row label="Окончание" value={selectedListing.auction_ends_at ? <Countdown to={selectedListing.auction_ends_at} /> as any : ''} />
+                <Row label="Окончание" value={selectedListing.auction_ends_at ? <Countdown to={selectedListing.auction_ends_at} /> : ''} />
               </div>
               <div>
                 <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Ваша ставка ($)</label>
@@ -622,7 +564,7 @@ const Row: React.FC<{ label: string; value: React.ReactNode; bold?: boolean; mut
 );
 
 const ItemPreview: React.FC<{ listing: MarketListing; t: (k: string) => string }> = ({ listing, t }) => {
-  const data = listing.item_data as any;
+  const data = listing.item_data;
   return (
     <div className="bg-muted/30 rounded-xl p-4 flex flex-col items-center gap-2">
       {listing.item_type === 'username' ? (
@@ -662,7 +604,7 @@ const ListingCard: React.FC<{
 }> = ({ listing, userId, balance, isFavorite, isHistory, onBuy, onBid, onCancel, onToggleFavorite, t }) => {
   const isMine = listing.seller_id === userId;
   const isUsername = listing.item_type === 'username';
-  const data = listing.item_data as any;
+  const data = listing.item_data;
   const isAuction = listing.listing_kind === 'auction';
   const ended = isAuction && listing.auction_ends_at && new Date(listing.auction_ends_at).getTime() <= Date.now();
 

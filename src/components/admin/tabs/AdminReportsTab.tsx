@@ -36,13 +36,13 @@ const AdminReportsTab: React.FC = () => {
     const { data } = await supabase
       .from('player_reports').select('*')
       .eq('status', filter).order('created_at', { ascending: false }).limit(200);
-    const list = (data as any) || [];
+    const list = (data as Report[]) || [];
     setReports(list);
     const ids = Array.from(new Set(list.flatMap((r: Report) => [r.reporter_user_id, r.reported_user_id]))) as string[];
     if (ids.length) {
       const { data: profs } = await supabase.from('profiles').select('user_id, username').in('user_id', ids);
       const map: Record<string, string> = {};
-      (profs || []).forEach((p: any) => { map[p.user_id] = p.username; });
+      (profs || []).forEach((p) => { map[p.user_id] = p.username; });
       setUsernames(map);
     }
     setLoading(false);

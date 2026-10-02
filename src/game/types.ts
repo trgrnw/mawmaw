@@ -115,6 +115,7 @@ export interface GameState {
   realEstateUpgrades: Record<string, string[]>;
   entrepreneurLicense: EntrepreneurLicense | null;
   bankCard: import('./bankCards').BankCardState;
+  unlockedAchievements: string[];
 }
 
 export interface GameContextType extends GameState {
@@ -137,11 +138,7 @@ export interface GameContextType extends GameState {
   buyCrypto: (assetId: string, amount: number) => boolean;
   sellCrypto: (assetId: string, amount: number) => boolean;
   buyRealEstateUpgrade: (itemId: string, upgradeId: string) => boolean;
-  spendBalance: (amount: number) => boolean;
-  addBalance: (amount: number, earnedAmount?: number) => void;
-  replaceBalance: (amount: number) => void;
-  addExperience: (amount: number) => void;
-  addLicensePlate: (plate: LicensePlateState) => void;
+  addLicensePlate: (plate: LicensePlateState) => boolean;
   assignPlate: (plateId: string, carId: string | null) => void;
   removePlate: (plateId: string) => void;
   buyBankCard: (cardId: string) => boolean;

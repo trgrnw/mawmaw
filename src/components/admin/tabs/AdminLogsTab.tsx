@@ -7,7 +7,7 @@ interface LogRow {
   admin_user_id: string;
   action: string;
   target_user_id: string | null;
-  details: any;
+  details: Record<string, unknown> | null;
   created_at: string;
   admin_name?: string;
   target_name?: string;
@@ -32,7 +32,7 @@ const AdminLogsTab: React.FC = () => {
     const { data: profiles } = await supabase.from('profiles').select('user_id, username');
 
     const merged = (logsData || []).map(l => ({
-      ...l,
+      ...l, details: l.details as Record<string, unknown> | null,
       admin_name: profiles?.find(p => p.user_id === l.admin_user_id)?.username || 'Unknown',
       target_name: l.target_user_id ? profiles?.find(p => p.user_id === l.target_user_id)?.username || '—' : '—',
     }));

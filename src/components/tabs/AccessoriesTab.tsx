@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { errorInfo } from '@/lib/errors';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useGame, formatMoney } from '@/context/GameContext';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -32,7 +33,7 @@ interface PlayerUsername {
 }
 
 const AccessoriesTab: React.FC = () => {
-  const { accessoryItems, buyAccessory, sellAccessory, balance, spendBalance, addBalance, shopItems, licensePlates, addLicensePlate, assignPlate, removePlate } = useGame();
+  const { accessoryItems, buyAccessory, sellAccessory, balance, syncProgress, shopItems, licensePlates, addLicensePlate, assignPlate, removePlate } = useGame();
   const { user } = useAuth();
   const { t, td } = useI18n();
   const [view, setView] = useState<View>('categories');
@@ -66,20 +67,12 @@ const AccessoriesTab: React.FC = () => {
   const [animatingPlate, setAnimatingPlate] = useState<LicensePlateData | null>(null);
   const [plateDuplicateError, setPlateDuplicateError] = useState('');
 
-  useEffect(() => {
+  const loadUsernames = useCallback(async () => {
     if (!user?.id) return;
-    loadUsernames();
+    const { data } = await supabase.from('player_usernames').select('id, username, is_active').eq('user_id', user.id).order('created_at', { ascending: true });
+    if (data) setMyUsernames(data);
   }, [user?.id]);
-
-  const loadUsernames = async () => {
-    if (!user?.id) return;
-    const { data, error } = await supabase
-      .from('player_usernames')
-      .select('id, username, is_active')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: true });
-    if (data) setMyUsernames(data as PlayerUsername[]);
-  };
+  useEffect(() => { void loadUsernames(); }, [loadUsernames]);
 
   const isPurchased = (itemId: string) => accessoryItems.find(i => i.id === itemId)?.purchased || false;
 
@@ -163,25 +156,24 @@ const AccessoriesTab: React.FC = () => {
     if (balance < USERNAME_PRICE) return;
     if (myUsernames.length >= MAX_USERNAMES) return;
     setUsernameBuying(true);
-    if (!spendBalance(USERNAME_PRICE)) {
-      setUsernameBuying(false);
-      return;
-    }
 
     try {
+      await syncProgress();
       const { error } = await withTimeout(
-        supabase.rpc('purchase_player_username' as any, { p_username: clean }),
+        supabase.rpc('purchase_player_username', { p_username: clean }),
         10_000,
         'Покупка username заняла слишком много времени',
       );
       if (error) throw error;
 
+      await syncProgress();
       setUsernameDialogOpen(false);
       setUsernameInput('');
       setUsernameAvailable(null);
       await loadUsernames();
       toast.success(`Username @${clean} куплен`);
-    } catch (error: any) {
+    } catch (caught: unknown) {
+      const error = errorInfo(caught);
       // A timeout is ambiguous: the server may have completed the purchase.
       // Reconcile ownership before refunding to avoid a free username.
       const { data: owned } = await supabase
@@ -198,14 +190,13 @@ const AccessoriesTab: React.FC = () => {
         await loadUsernames();
         toast.success(`Username @${clean} куплен`);
       } else {
-        addBalance(USERNAME_PRICE);
         const message = String(error?.message || 'Не удалось купить username');
         if (error?.code === '23505' || message.toLowerCase().includes('already taken')) {
           setUsernameAvailable(false);
           setUsernameError(t('acc.already_taken'));
         }
         console.error('[Username] purchase failed', error);
-        toast.error(`${message}. Деньги возвращены.`);
+        toast.error(message);
       }
     } finally {
       setUsernameBuying(false);
@@ -223,12 +214,13 @@ const AccessoriesTab: React.FC = () => {
 
   const handleDeleteUsername = async (id: string) => {
     if (!user?.id) return;
-    await supabase.from('player_usernames').delete().eq('id', id).eq('user_id', user.id);
+    const { error } = await supabase.rpc('delete_player_username', { p_id: id });
+    if (error) { toast.error(error.message); return; }
     loadUsernames();
   };
 
 
-  const generatePreview = () => {
+  const generatePreview = useCallback(() => {
     setPlateDuplicateError('');
     if (plateMode === 'random') {
       const text = generateRandomPlate(plateCountry);
@@ -248,11 +240,11 @@ const AccessoriesTab: React.FC = () => {
         setPlatePreview(null);
       }
     }
-  };
+  }, [plateMode, plateCountry, customPlateText, licensePlates, t]);
 
   useEffect(() => {
     if (plateDialogOpen) generatePreview();
-  }, [plateCountry, plateMode, plateDialogOpen]);
+  }, [plateDialogOpen, generatePreview]);
 
   const handleBuyPlate = () => {
     const price = plateMode === 'random' ? RANDOM_PLATE_PRICE : CUSTOM_PLATE_PRICE;
@@ -275,7 +267,6 @@ const AccessoriesTab: React.FC = () => {
       }
     }
 
-    if (!spendBalance(price)) return;
 
     const plate: LicensePlateData = {
       id: `plate-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -285,22 +276,25 @@ const AccessoriesTab: React.FC = () => {
       isCustom: plateMode === 'custom',
     };
 
+    if (!addLicensePlate(plate)) return;
     if (plateMode === 'random') {
       // Show animation for random plates
       setAnimatingPlate(plate);
       setPlateAnimating(true);
       setPlateDialogOpen(false);
     } else {
-      addLicensePlate(plate);
       setPlateDialogOpen(false);
       setCustomPlateText('');
     }
   };
 
+  useEffect(() => {
+    if (!plateAnimating) return;
+    const purchased = licensePlates.filter(p => !p.isCustom && p.country === plateCountry).at(-1);
+    if (purchased) setAnimatingPlate(purchased);
+  }, [licensePlates, plateAnimating, plateCountry]);
+
   const handleAnimationComplete = () => {
-    if (animatingPlate) {
-      addLicensePlate(animatingPlate);
-    }
     setPlateAnimating(false);
     setAnimatingPlate(null);
   };

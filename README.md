@@ -1,73 +1,53 @@
-# Welcome to your Lovable project
+# Financial Clicker: Business Empire
 
-## Project info
+React / TypeScript game with a local guest mode and Supabase accounts, marketplace, clans and casino. The repository name is not the game's title.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## Development
 
-## How can I edit this code?
-
-There are several ways of editing your application.
-
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
+Use Node 22.12+ (CI uses Node 24).
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+npm ci
+cp .env.example .env.local
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+Fill `.env.local` with the project's public Supabase URL and publishable key. Never place service role credentials in `VITE_*` variables or browser code.
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+```sh
+npm run lint
+npm test
+npm run test:database
+npm run build:domain
+npm run build
+```
 
-**Use GitHub Codespaces**
+`test:database` applies every migration to an isolated PostgreSQL-compatible PGlite instance and exercises permissions, idempotency and settlements. Its auth/storage fixtures and random-byte adapter are for testing only; it does not access production or test real Supabase networking, JWT verification or concurrent database connections.
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## Backend update required
 
-## What technologies are used for this project?
+The October 2026 client requires **all four `20261002*` migrations**, the rebuilt shared domain bundle, and the `game-sync` and `casino` Edge Functions. Until those are deployed, authenticated economic actions deliberately stop at synchronization rather than falling back to unverified snapshot writes. Guest play remains local.
 
-This project is built with:
+Before applying to an existing project, back up the database and test a restored staging copy. The migrations preserve existing game snapshots and migrate plate escrow. Old pending casino bets cannot be verified because their stakes were previously charged only in browsers; those legacy pending rounds are closed without a new server payout. Finish old games before the maintenance window. Existing paid history is retained.
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+Deploy the database and functions together during a maintenance window, then publish the matching frontend:
 
-## How can I deploy this project?
+```sh
+npm run build:domain
+supabase link --project-ref YOUR_PROJECT_REF
+supabase db push
+supabase functions deploy game-sync
+supabase functions deploy casino
+```
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+The functions validate bearer tokens with `auth.getUser`; their gateway JWT setting is in `supabase/config.toml`. Supabase supplies function service credentials; they stay on the server. An existing GitHub backend workflow performs validation and deployment when its repository secrets are configured.
 
-## Can I connect a custom domain to my Lovable project?
+If `pg_cron` is enabled, the migration installs minute jobs for casino and auction settlement. Otherwise settlement happens on authenticated reconnection and casino requests; verify scheduling before release. After deployment test login, a purchase and reload, disconnect/reconnect, two-player asset transfer, auction refunds, casino stake/cashout and ban enforcement against staging.
 
-Yes, you can!
+The server accepts narrow actions with persistent receipts and revision checks. Balance edits, item ownership, stakes and payouts are transactional. Saved guest progress stays on the device and is not imported as trusted online wealth. Account progress and unacknowledged actions are cached separately. Keep a source export or Git checkout for long-term development.
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+## Hosting
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+Vite builds at `/` by default; set `VITE_BASE_PATH` for a subdirectory. The GitHub Pages workflow supplies the repository path. Sites publication uses `.openai/hosting.json` and the `dist` directory.
+
+This is still a web game. Steam packaging, release QA, full localization and asset/license review remain release work; this update does not claim Steam readiness.

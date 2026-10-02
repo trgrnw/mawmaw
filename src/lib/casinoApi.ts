@@ -3,12 +3,12 @@ import { withTimeout } from '@/lib/async';
 
 const CASINO_TIMEOUT_MS = 10_000;
 
-export async function invokeCasino(
+export async function invokeCasino<T extends object>(
   action: string,
   params: Record<string, unknown> = {},
-): Promise<any> {
+): Promise<T> {
   const request = supabase.functions.invoke('casino', {
-    body: { action, ...params },
+    body: { action, request_id: crypto.randomUUID(), ...params },
   });
   const { data, error } = await withTimeout(
     request,
@@ -17,7 +17,7 @@ export async function invokeCasino(
   );
   if (error) throw new Error(error.message || 'Ошибка сервера казино');
   if (data?.error) throw new Error(String(data.error));
-  return data;
+  return data as T;
 }
 
 export function casinoErrorMessage(error: unknown): string {

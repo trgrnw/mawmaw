@@ -36,8 +36,10 @@ function getMultiplierColor(x: number): string {
 
 const BOMB_PRESETS = [3, 5, 10, 16, 24];
 
+type CasinoResponse = { error?: string; game?: MinesGameState; bets?: MinesBet[]; success?: boolean; is_bomb?: boolean; bomb_positions?: number[]; multiplier?: number; win_amount?: number; game_over?: boolean };
+
 const MinesGame: React.FC<{ onBack: () => void }> = ({ onBack }) => {
-  const { balance, spendBalance, addBalance } = useGame();
+  const { balance, syncProgress } = useGame();
   const { user, username } = useAuth();
   const { t } = useI18n();
 
@@ -51,9 +53,12 @@ const MinesGame: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   const [revealedCells, setRevealedCells] = useState<Set<number>>(new Set());
   const [bombHit, setBombHit] = useState<number | null>(null);
 
-  const callCasino = useCallback(async (action: string, params: Record<string, unknown> = {}) => {
+  const callCasino = useCallback(async (action: string, params: Record<string, unknown> = {}): Promise<CasinoResponse> => {
     try {
-      const data = await invokeCasino(action, params);
+      const mutation = !action.startsWith('get_');
+      if (mutation) await syncProgress();
+      const data = await invokeCasino<CasinoResponse>(action, params);
+      if (mutation) await syncProgress().catch(() => undefined);
       setApiError('');
       return data;
     } catch (error) {
@@ -61,12 +66,14 @@ const MinesGame: React.FC<{ onBack: () => void }> = ({ onBack }) => {
       setApiError(message);
       return { error: message };
     }
-  }, []);
+  }, [syncProgress]);
 
   // Load recent bets
   useEffect(() => {
     if (!user) return;
     const load = async () => {
+      const restored = await callCasino('get_active_mines');
+      if (restored?.game) { setGame(restored.game); setRevealedCells(new Set(restored.game.revealed_positions)); }
       const data = await callCasino('get_mines_history');
       if (data?.bets) setRecentBets(data.bets);
     };
@@ -74,16 +81,15 @@ const MinesGame: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   }, [user, callCasino]);
 
   const startGame = async () => {
-    if (betAmount < 100 || !spendBalance(betAmount)) return;
+    if (loading || !Number.isFinite(betAmount) || betAmount < 100 || betAmount > 1_000_000 || betAmount > balance) return;
     setLoading(true);
     setBombPositions(null);
     setBombHit(null);
     setRevealedCells(new Set());
     const data = await callCasino('start_mines', { bomb_count: bombCount, bet_amount: betAmount });
-    if (data?.error) {
-      addBalance(betAmount);
-    } else if (data?.game) {
+    if (data?.game) {
       setGame(data.game);
+      setRevealedCells(new Set(data.game.revealed_positions));
     }
     setLoading(false);
   };
@@ -92,28 +98,14 @@ const MinesGame: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     if (!game || game.status !== 'active' || revealedCells.has(pos) || loading) return;
     setLoading(true);
     const data = await callCasino('reveal_mine', { game_id: game.id, position: pos, username: username || 'Player' });
-    if (data) {
-      const newRevealed = new Set(revealedCells);
-      newRevealed.add(pos);
-      setRevealedCells(newRevealed);
-
-      if (data.is_bomb) {
-        setBombHit(pos);
-        setBombPositions(data.bomb_positions);
-        setGame(prev => prev ? { ...prev, status: 'lost' } : null);
-        // Refresh history
-        const hist = await callCasino('get_mines_history');
-        if (hist?.bets) setRecentBets(hist.bets);
-      } else {
-        setGame(prev => prev ? { ...prev, current_multiplier: data.multiplier, revealed_positions: [...prev.revealed_positions, pos] } : null);
-        if (data.game_over) {
-          setBombPositions(data.bomb_positions);
-          setGame(prev => prev ? { ...prev, status: 'won' } : null);
-          const payout = game.bet_amount * data.multiplier;
-          addBalance(payout, Math.max(0, payout - game.bet_amount));
-          const hist = await callCasino('get_mines_history');
-          if (hist?.bets) setRecentBets(hist.bets);
-        }
+    if (data?.game && !data.error) {
+      setGame(data.game);
+      setRevealedCells(new Set(data.game.revealed_positions));
+      if (data.game_over) {
+        setBombPositions(data.bomb_positions || []);
+        if (data.game.status === 'lost') setBombHit(data.game.revealed_positions.find(cell => data.bomb_positions?.includes(cell)) ?? null);
+        const history = await callCasino('get_mines_history');
+        if (history?.bets) setRecentBets(history.bets);
       }
     }
     setLoading(false);
@@ -124,7 +116,6 @@ const MinesGame: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     setLoading(true);
     const data = await callCasino('cashout_mines', { game_id: game.id, username: username || 'Player' });
     if (data?.success) {
-      addBalance(data.win_amount, Math.max(0, data.win_amount - game.bet_amount));
       setBombPositions(data.bomb_positions);
       setGame(prev => prev ? { ...prev, status: 'won' } : null);
       const hist = await callCasino('get_mines_history');
@@ -150,7 +141,7 @@ const MinesGame: React.FC<{ onBack: () => void }> = ({ onBack }) => {
       <button onClick={onBack} className="text-sm text-muted-foreground hover:text-foreground">← {t('casino.back')}</button>
       {apiError && (
         <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
-          Казино недоступно: {apiError}. Проверьте установку Supabase backend.
+          Казино временно недоступно: {apiError}. Повторите попытку.
         </div>
       )}
 
@@ -327,7 +318,7 @@ const MinesGame: React.FC<{ onBack: () => void }> = ({ onBack }) => {
           {!isActive && (
             <Button
               onClick={startGame}
-              disabled={loading || betAmount < 100 || betAmount > balance}
+              disabled={loading || !Number.isFinite(betAmount) || betAmount < 100 || betAmount > 1000000 || betAmount > balance}
               className="w-full"
               size="lg"
             >

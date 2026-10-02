@@ -61,7 +61,7 @@ const SupportTab: React.FC<SupportProps> = ({ forcedCategory, hideHeading }) => 
       .select('*')
       .eq('user_id', user.id)
       .order('updated_at', { ascending: false });
-    setTickets((data as any) || []);
+    setTickets((data as Ticket[]) || []);
     setLoading(false);
   }, [user]);
 
@@ -77,7 +77,7 @@ const SupportTab: React.FC<SupportProps> = ({ forcedCategory, hideHeading }) => 
       .select('*')
       .eq('ticket_id', ticketId)
       .order('created_at', { ascending: true });
-    setMessages((data as any) || []);
+    setMessages(data || []);
   }, []);
 
   useEffect(() => {

@@ -1,3 +1,4 @@
+import { errorInfo } from '@/lib/errors';
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
@@ -79,10 +80,10 @@ const AdminBansTab: React.FC = () => {
     const numId = parseInt(q);
     if (!isNaN(numId)) {
       const { data } = await supabase.from('profiles').select('user_id, username, player_id').eq('player_id', numId).maybeSingle();
-      if (data) { setTargetResult(data as any); return; }
+      if (data) { setTargetResult(data); return; }
     }
     const { data } = await supabase.from('profiles').select('user_id, username, player_id').ilike('username', `%${q}%`).limit(1).maybeSingle();
-    if (data) setTargetResult(data as any);
+    if (data) setTargetResult(data);
     else toast.error('Игрок не найден');
   };
 
@@ -98,7 +99,8 @@ const AdminBansTab: React.FC = () => {
       toast.success(`${targetResult.username} забанен`);
       setBanOpen(false); setTargetResult(null); setTargetQuery(''); setReason('');
       load();
-    } catch (e: any) {
+    } catch (caught: unknown) {
+      const e = errorInfo(caught);
       toast.error(e.message || 'Ошибка');
     }
   };
@@ -110,7 +112,8 @@ const AdminBansTab: React.FC = () => {
       if (error) throw error;
       toast.success(`${username} разбанен`);
       load();
-    } catch (e: any) { toast.error(e.message || 'Ошибка'); }
+    } catch (caught: unknown) {
+      const e = errorInfo(caught); toast.error(e.message || 'Ошибка'); }
   };
 
   const filtered = bans.filter(b => {

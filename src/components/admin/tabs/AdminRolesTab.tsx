@@ -49,7 +49,7 @@ const AdminRolesTab: React.FC = () => {
 
     const { error } = await supabase.from('user_roles').insert({
       user_id: selectedUser,
-      role: selectedRole as any,
+      role: selectedRole as 'owner' | 'admin' | 'moderator',
     });
 
     if (error) {

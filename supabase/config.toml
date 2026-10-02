@@ -1,1 +1,7 @@
 project_id = "jfgclzvglotlfviipvrv"
+
+# Each function verifies the bearer token with auth.getUser itself.
+[functions.game-sync]
+verify_jwt = false
+[functions.casino]
+verify_jwt = false

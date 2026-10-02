@@ -1,3 +1,4 @@
+import { errorInfo } from '@/lib/errors';
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
@@ -98,7 +99,8 @@ const ProfileCustomization: React.FC<Props> = ({ open, onClose, current, onSaved
       if (rpcErr) throw rpcErr;
       await updateProfile({ avatarUrl: url });
       toast.success('Аватар обновлён');
-    } catch (err: any) {
+    } catch (caught: unknown) {
+      const err = errorInfo(caught);
       toast.error(err.message || 'Ошибка загрузки');
     } finally {
       setUploading(false);
@@ -115,7 +117,8 @@ const ProfileCustomization: React.FC<Props> = ({ open, onClose, current, onSaved
       if (rpcErr) throw rpcErr;
       await updateProfile({ avatarUrl: '' });
       toast.success('Фото убрано');
-    } catch (err: any) {
+    } catch (caught: unknown) {
+      const err = errorInfo(caught);
       toast.error(err.message || 'Ошибка');
     } finally {
       setUploading(false);
@@ -136,7 +139,8 @@ const ProfileCustomization: React.FC<Props> = ({ open, onClose, current, onSaved
       onSaved({ banner_url: banner, frame_id: frame, status_text: status });
       toast.success('Профиль обновлён');
       onClose();
-    } catch (e: any) {
+    } catch (caught: unknown) {
+      const e = errorInfo(caught);
       toast.error(e.message || 'Ошибка сохранения');
     } finally {
       setSaving(false);
@@ -183,7 +187,8 @@ const ProfileCustomization: React.FC<Props> = ({ open, onClose, current, onSaved
       URL.revokeObjectURL(bannerSource);
       setBannerSource(null);
       toast.success('Баннер подготовлен. Нажмите «Сохранить».');
-    } catch (error: any) { toast.error(error.message || 'Ошибка загрузки баннера'); }
+    } catch (caught: unknown) {
+      const error = errorInfo(caught); toast.error(error.message || 'Ошибка загрузки баннера'); }
     finally { setUploading(false); }
   };
 

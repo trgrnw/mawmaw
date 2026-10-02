@@ -150,8 +150,8 @@ const ClansTab: React.FC = () => {
       const { data: tlogs } = await supabase.from('clan_treasury_logs').select('*').eq('clan_id', memberData.clan_id).order('created_at', { ascending: false }).limit(50);
       setTreasuryLogs(tlogs || []);
       if (clanData?.owner_id === user.id) {
-        const { data: alogs } = await supabase.from('clan_action_logs' as any).select('*').eq('clan_id', memberData.clan_id).order('created_at', { ascending: false }).limit(100);
-        setActionLogs((alogs as any[]) || []);
+        const { data: alogs } = await supabase.from('clan_action_logs').select('*').eq('clan_id', memberData.clan_id).order('created_at', { ascending: false }).limit(100);
+        setActionLogs((alogs || []).map(log => ({ ...log, details: log.details as Record<string, unknown> })));
       } else setActionLogs([]);
     } else {
       setMyMember(null);
@@ -177,8 +177,8 @@ const ClansTab: React.FC = () => {
     }
 
     // Top clans
-    const { data: lb } = await supabase.from('clan_leaderboard').select('*').order('total_net_worth', { ascending: false }).limit(50);
-    setAllClans(lb as any || []);
+    const { data: lb } = await supabase.rpc('get_clan_leaderboard');
+    setAllClans(lb as unknown as (Clan & { total_net_worth: number; owner_name: string })[] || []);
 
     setLoading(false);
   }, [user]);
@@ -306,7 +306,7 @@ const ClansTab: React.FC = () => {
   const handleDelete = async () => {
     if (deleteConfirmation !== myClan.name || deleting) return;
     setDeleting(true);
-    const { error } = await supabase.rpc('delete_clan_confirmed' as any, { p_clan_name: deleteConfirmation });
+    const { error } = await supabase.rpc('delete_clan_confirmed', { p_clan_name: deleteConfirmation });
     setDeleting(false);
     if (error) toast.error(error.message); else { toast.success('Клан удалён'); setDeleteOpen(false); setDeleteConfirmation(''); loadAll(); }
   };
@@ -541,7 +541,7 @@ const EditClanDialog: React.FC<{ open: boolean; onOpenChange: (b: boolean) => vo
     const { data, error } = await supabase.rpc('update_clan_info', { p_name: name, p_tag: tag, p_emoji: emoji, p_description: desc });
     if (error) toast.error(error.message);
     else {
-      const cost = (data as any)?.cost || 0;
+      const cost = (data as {cost?: number})?.cost || 0;
       toast.success(cost > 0 ? `Изменения сохранены ($${formatMoney(cost)})` : 'Изменения сохранены');
       onOpenChange(false); onUpdated();
     }
@@ -655,7 +655,7 @@ const RolesDialog: React.FC<{ open: boolean; onOpenChange: (b: boolean) => void;
             {PERM_LABELS.map(p => (
               <div key={p.key} className="flex items-center justify-between">
                 <Label>{p.label}</Label>
-                <Switch checked={!!(draft as any)[p.key]} onCheckedChange={v => setDraft({ ...draft, [p.key]: v })} />
+                <Switch checked={!!draft[p.key as keyof ClanRole]} onCheckedChange={v => setDraft({ ...draft, [p.key]: v })} />
               </div>
             ))}
             <Button onClick={save} className="w-full">Сохранить</Button>

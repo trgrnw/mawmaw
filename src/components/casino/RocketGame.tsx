@@ -72,8 +72,10 @@ const SpaceBackground: React.FC<{ progress: number; status: string }> = ({ progr
   );
 };
 
+type CasinoResponse = { error?: string; round?: RocketRound; bets?: RocketBet[]; history?: number[]; success?: boolean; multiplier?: number; win_amount?: number };
+
 const RocketGame: React.FC<{ onBack: () => void }> = ({ onBack }) => {
-  const { balance, spendBalance, addBalance } = useGame();
+  const { balance, syncProgress } = useGame();
   const { user, username } = useAuth();
   const { t } = useI18n();
 
@@ -97,9 +99,12 @@ const RocketGame: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   const animRef = useRef<number>();
   const roundStatusRef = useRef<string>('');
 
-  const callCasino = useCallback(async (action: string, params: Record<string, unknown> = {}) => {
+  const callCasino = useCallback(async (action: string, params: Record<string, unknown> = {}): Promise<CasinoResponse> => {
     try {
-      const data = await invokeCasino(action, params);
+      const mutation = !action.startsWith('get_');
+      if (mutation) await syncProgress();
+      const data = await invokeCasino<CasinoResponse>(action, params);
+      if (mutation) await syncProgress().catch(() => undefined);
       setApiError('');
       return data;
     } catch (error) {
@@ -107,7 +112,7 @@ const RocketGame: React.FC<{ onBack: () => void }> = ({ onBack }) => {
       setApiError(message);
       return { error: message };
     }
-  }, []);
+  }, [syncProgress]);
 
   // Poll — only source of truth for multiplier
   useEffect(() => {
@@ -115,7 +120,7 @@ const RocketGame: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     let active = true;
     const poll = async () => {
       const data = await callCasino('get_rocket_round');
-      if (!active || !data) return;
+      if (!active || !data || data.error) return;
       if (data.round) {
         const sr = data.round;
         setRound(sr);
@@ -143,7 +148,7 @@ const RocketGame: React.FC<{ onBack: () => void }> = ({ onBack }) => {
       setMyCashedOut(myBet?.result === 'won');
     };
     poll();
-    const interval = setInterval(poll, 500); // poll faster for smoother sync
+    const interval = setInterval(poll, 1500);
     return () => { active = false; clearInterval(interval); };
   }, [user, callCasino]);
 
@@ -186,16 +191,8 @@ const RocketGame: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     return () => clearInterval(interval);
   }, [round]);
 
-  // Reset on new round
-  useEffect(() => {
-    if (round?.status === 'waiting') {
-      setMyBetPlaced(false);
-      setMyCashedOut(false);
-    }
-  }, [round?.id]);
-
   const placeBet = async () => {
-    if (!round || round.status !== 'waiting' || betAmount < 100 || !spendBalance(betAmount)) return;
+    if (!round || round.status !== 'waiting' || loading || !Number.isFinite(betAmount) || betAmount < 100 || betAmount > 1_000_000 || betAmount > balance) return;
     setLoading(true);
     const ac = autoCashoutEnabled && autoCashout ? parseFloat(autoCashout) : undefined;
     const data = await callCasino('place_rocket_bet', {
@@ -203,16 +200,15 @@ const RocketGame: React.FC<{ onBack: () => void }> = ({ onBack }) => {
       auto_cashout: ac && ac >= 1.1 ? ac : undefined,
       username: username || 'Player',
     });
-    if (data?.error) addBalance(betAmount);
-    else setMyBetPlaced(true);
+    if (!data?.error) setMyBetPlaced(true);
     setLoading(false);
   };
 
   const cashout = async () => {
-    if (!round || round.status !== 'flying' || myCashedOut) return;
+    if (!round || round.status !== 'flying' || myCashedOut || loading) return;
     setLoading(true);
     const data = await callCasino('cashout_rocket', { round_id: round.id });
-    if (data?.success) { setMyCashedOut(true); addBalance(data.win_amount, Math.max(0, data.win_amount - betAmount)); }
+    if (data?.success) { setMyCashedOut(true); }
     setLoading(false);
   };
 
@@ -232,7 +228,7 @@ const RocketGame: React.FC<{ onBack: () => void }> = ({ onBack }) => {
       <button onClick={onBack} className="text-sm text-muted-foreground hover:text-foreground">← {t('casino.back')}</button>
       {apiError && (
         <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
-          Казино недоступно: {apiError}. Проверьте установку Supabase backend.
+          Казино временно недоступно: {apiError}. Повторите попытку.
         </div>
       )}
 

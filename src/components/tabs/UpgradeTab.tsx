@@ -6,7 +6,7 @@ import GameIcon from '@/components/GameIcon';
 const UpgradeTab: React.FC = () => {
   const { upgrades, buyUpgrade, balance, clickPower } = useGame();
   const { t } = useI18n();
-  const upgradeIcon = (id: string) => id === 'click-power' ? 'click' : id === 'autoclicker' ? 'gamepad' : id === 'auto-taxes' ? 'taxes' : 'upgrade';
+  const upgradeIcon = (id: string) => id === 'click-power' ? 'click' : id === 'autoclicker' ? 'gamepad' : id === 'auto-tax' ? 'taxes' : 'upgrade';
 
   return (
     <div className="max-w-xl space-y-6">
