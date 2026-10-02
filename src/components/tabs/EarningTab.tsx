@@ -3,6 +3,8 @@ import { useGame, formatMoney } from '@/context/GameContext';
 import { useI18n } from '@/i18n/I18nContext';
 import BankCard from '@/components/BankCard';
 import GameIcon from '@/components/GameIcon';
+import CatCompanion from '@/components/earning/CatCompanion';
+import { createCatActivity, recordCatClick } from '@/components/earning/catReactions';
 
 interface FloatingCoin {
   id: number;
@@ -16,9 +18,11 @@ const EarningTab: React.FC = () => {
   const { t } = useI18n();
   const [coins, setCoins] = useState<FloatingCoin[]>([]);
   const coinId = useRef(0);
+  const catActivity = useRef(createCatActivity());
 
   const handleClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     click();
+    recordCatClick(catActivity.current, performance.now());
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
@@ -30,7 +34,8 @@ const EarningTab: React.FC = () => {
   const hasPassive = hourlyIncome > 0;
 
   return (
-    <div className="space-y-8 max-w-xl">
+    <div className="grid max-w-7xl grid-cols-1 items-start gap-8 xl:grid-cols-[minmax(0,1fr)_minmax(360px,1fr)]">
+    <div className="space-y-8 min-w-0 max-w-xl">
       <div>
         <h2 className="text-2xl font-bold mb-1 flex items-center gap-2">
           <GameIcon name="earning" size={24} themed />
@@ -100,6 +105,8 @@ const EarningTab: React.FC = () => {
         </div>
       )}
 
+    </div>
+    <CatCompanion activity={catActivity} />
     </div>
   );
 };
