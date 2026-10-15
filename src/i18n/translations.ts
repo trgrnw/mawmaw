@@ -2,6 +2,10 @@ export type Locale = 'ru' | 'en' | 'fr' | 'it' | 'de' | 'es' | 'ja' | 'ko' | 'cn
 
 export const translations: Partial<Record<Locale, Record<string, string>>> & Pick<Record<Locale, Record<string, string>>, 'ru'> = {
   ru: {
+    'profile.favorite_username': 'Любимый username',
+    'profile.favorite_plate': 'Любимый номер',
+    'profile.cat_art': 'Живопись',
+
     // Nav
     'nav.earning': 'Заработок',
     'nav.upgrade': 'Апгрейд',
@@ -443,6 +447,10 @@ export const translations: Partial<Record<Locale, Record<string, string>>> & Pic
     'ach.empty': 'Достижений не найдено',
   },
   en: {
+    'profile.favorite_username': 'Favorite username',
+    'profile.favorite_plate': 'Favorite plate',
+    'profile.cat_art': 'Art',
+
     'nav.earning': 'Earning',
     'nav.upgrade': 'Upgrade',
     'nav.business': 'Business',
@@ -867,6 +875,10 @@ export const translations: Partial<Record<Locale, Record<string, string>>> & Pic
     'ach.empty': 'No achievements found',
   },
   cn: {
+    'profile.favorite_username': '最喜爱的用户名',
+    'profile.favorite_plate': '最喜爱的车牌',
+    'profile.cat_art': '艺术品',
+
     'nav.earning': '赚钱',
     'nav.upgrade': '升级',
     'nav.business': '商业',
@@ -1291,6 +1303,10 @@ export const translations: Partial<Record<Locale, Record<string, string>>> & Pic
     'ach.empty': '未找到成就',
   },
   pl: {
+    'profile.favorite_username': 'Ulubiona nazwa użytkownika',
+    'profile.favorite_plate': 'Ulubiona tablica',
+    'profile.cat_art': 'Sztuka',
+
     'nav.earning': 'Zarobki',
     'nav.upgrade': 'Ulepszenia',
     'nav.business': 'Biznes',
@@ -1715,6 +1731,10 @@ export const translations: Partial<Record<Locale, Record<string, string>>> & Pic
     'ach.empty': 'Nie znaleziono osiągnięć',
   },
   de: {
+    'profile.favorite_username': 'Lieblingsbenutzername',
+    'profile.favorite_plate': 'Lieblingskennzeichen',
+    'profile.cat_art': 'Kunst',
+
     'nav.earning': 'Verdienst',
     'nav.upgrade': 'Upgrade',
     'nav.business': 'Geschäft',

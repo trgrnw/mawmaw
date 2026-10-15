@@ -16,7 +16,6 @@ const EarningTab: React.FC = () => {
   const { t } = useI18n();
   const [coins, setCoins] = useState<FloatingCoin[]>([]);
   const coinId = useRef(0);
-
   const handleClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     click();
     const rect = e.currentTarget.getBoundingClientRect();
@@ -30,7 +29,8 @@ const EarningTab: React.FC = () => {
   const hasPassive = hourlyIncome > 0;
 
   return (
-    <div className="space-y-8 max-w-xl">
+    <div className="max-w-3xl">
+    <div className="space-y-8 min-w-0 max-w-xl">
       <div>
         <h2 className="text-2xl font-bold mb-1 flex items-center gap-2">
           <GameIcon name="earning" size={24} themed />
@@ -100,6 +100,7 @@ const EarningTab: React.FC = () => {
         </div>
       )}
 
+    </div>
     </div>
   );
 };

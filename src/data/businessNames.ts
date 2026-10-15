@@ -1,3 +1,9 @@
+// Fictional name components; no real business directory or brand list is used.
+// These creative names are not a trademark-clearance certification.
+const nameRoots = ["Avelqor", "Brenvilo", "Caldrevo", "Dovrenix", "Elnavero", "Fenvoria", "Grelvane", "Havrelio", "Istravon", "Jorveliq", "Kelmavio", "Lunqevra", "Morvexil", "Nerquivo", "Ostravel", "Penvorix", "Quelmara", "Renvazio", "Selqorin", "Tervunio"];
+const makeBusinessNames = (suffixes: string[]): string[] =>
+  nameRoots.flatMap(root => suffixes.map(suffix => `${root} ${suffix}`));
+
 export interface BusinessCategory {
   id: string;
   name: string;
@@ -14,11 +20,7 @@ export const businessCategories: BusinessCategory[] = [
     emoji: '🛍️',
     cost: 4999,
     baseIncomePerHour: 250,
-    names: [
-      'ТоргМаркет', 'БайПлюс', 'СмартШоп', 'ПроТорг', 'ТрендМарт',
-      'ЛайтСток', 'МегаСелл', 'ФастТрейд', 'БазарПро', 'ТоргЭлит',
-      'ШопЛайн', 'СуперМарт', 'ПрайсХит', 'ОптимаТорг', 'КвикСейл',
-    ],
+    names: makeBusinessNames(["Market", "Goods", "Stores", "Trading", "Outlet", "Bazaar", "Retail", "Supply", "Mart", "Emporium"]),
   },
   {
     id: 'taxi',
@@ -26,11 +28,7 @@ export const businessCategories: BusinessCategory[] = [
     emoji: '🚕',
     cost: 17899,
     baseIncomePerHour: 890,
-    names: [
-      'СитиТакси', 'ТурбоДрайв', 'ФастГоу', 'АвтоЛайн', 'ГородРайд',
-      'СпидКар', 'ТаксиПлюс', 'ДрайвЭкспресс', 'МобилТакси', 'РайдПро',
-      'КомфортДрайв', 'ТаксиЭлит', 'ПилотКар', 'ЕздаПро', 'АвтоРуш',
-    ],
+    names: makeBusinessNames(["Rides", "Cabs", "Transit", "Fleet", "Mobility", "Routes", "Shuttle", "Drive", "Transfer", "Taxi"]),
   },
   {
     id: 'food',
@@ -38,11 +36,7 @@ export const businessCategories: BusinessCategory[] = [
     emoji: '🍔',
     cost: 23999,
     baseIncomePerHour: 1200,
-    names: [
-      'ФудХаус', 'ТейстиБар', 'ГастроПлюс', 'БургерЛаб', 'КафеЛюкс',
-      'ФудСити', 'ВкусноПро', 'КухняМир', 'ШефПлейс', 'БистроЭлит',
-      'ГурмеХаб', 'ФрешФуд', 'СушиЛайн', 'ПиццаДом', 'СтритФуд',
-    ],
+    names: makeBusinessNames(["Kitchen", "Bistro", "Bakery", "Table", "Pantry", "Diner", "Grill", "Eatery", "Supper", "Catering"]),
   },
   {
     id: 'manufacturing',
@@ -50,11 +44,7 @@ export const businessCategories: BusinessCategory[] = [
     emoji: '🏭',
     cost: 38999,
     baseIncomePerHour: 1950,
-    names: [
-      'ПромТех', 'ИндустриПро', 'ЗаводПлюс', 'МегаПром', 'ТехноЛайн',
-      'ФабрикаПро', 'ПромИнвест', 'СталькорП', 'АвтоПром', 'МетаТех',
-      'ПромСила', 'ИнжиПро', 'ТехноМаш', 'КомплектПро', 'ПромЭлит',
-    ],
+    names: makeBusinessNames(["Works", "Foundry", "Industries", "Fabrication", "Assembly", "Machining", "Forge", "Components", "Production", "Toolworks"]),
   },
   {
     id: 'construction',
@@ -62,11 +52,7 @@ export const businessCategories: BusinessCategory[] = [
     emoji: '🏗️',
     cost: 78999,
     baseIncomePerHour: 3950,
-    names: [
-      'СтройПлюс', 'МегаСтрой', 'БилдПро', 'КонструктА', 'АрхСтрой',
-      'СтройЭлит', 'ФундаментПро', 'ДомМастер', 'СтройИнвест', 'ТопСтрой',
-      'МонолитПро', 'СтройСити', 'БетонПлюс', 'СтройЛидер', 'ГрадСтрой',
-    ],
+    names: makeBusinessNames(["Builders", "Structures", "Foundations", "Masonry", "Construction", "Frameworks", "Developments", "Brickworks", "Contracting", "Roofing"]),
   },
   {
     id: 'education',
@@ -74,11 +60,7 @@ export const businessCategories: BusinessCategory[] = [
     emoji: '📚',
     cost: 122999,
     baseIncomePerHour: 6150,
-    names: [
-      'ЭдуПро', 'СмартСкул', 'ЗнаниеПлюс', 'АкадемияТоп', 'ЛёрнХаб',
-      'ИнтеллектПро', 'КурсЛайн', 'ОбразЛидер', 'СтадиМакс', 'УчебаПро',
-      'ГениусЛаб', 'ПрогрессЭду', 'МастерКласс', 'НаукаПлюс', 'ЭдуТех',
-    ],
+    names: makeBusinessNames(["Academy", "Learning", "School", "Tutoring", "Studies", "Courses", "Classroom", "Scholars", "Education", "Institute"]),
   },
   {
     id: 'medicine',
@@ -86,11 +68,7 @@ export const businessCategories: BusinessCategory[] = [
     emoji: '🏥',
     cost: 189999,
     baseIncomePerHour: 9500,
-    names: [
-      'МедПлюс', 'ЗдоровьеПро', 'КлиникТоп', 'МедЛайн', 'ВитаЦентр',
-      'ДокторПро', 'МедЭлит', 'ФармаЛайф', 'ЗдравПлюс', 'МедСити',
-      'КлиникАльфа', 'ПульсМед', 'ХелсПро', 'КардиоЦентр', 'МедИнвест',
-    ],
+    names: makeBusinessNames(["Clinic", "Care", "Medical", "Wellness", "Diagnostics", "Therapy", "Health", "Remedies", "Dental", "Recovery"]),
   },
   {
     id: 'auto-dealer',
@@ -98,11 +76,7 @@ export const businessCategories: BusinessCategory[] = [
     emoji: '🚗',
     cost: 250000,
     baseIncomePerHour: 12500,
-    names: [
-      'АвтоЭлит', 'МоторПро', 'ДрайвЛюкс', 'КарХаус', 'АвтоПлюс',
-      'ПремиумКар', 'МоторСити', 'АвтоЛидер', 'ТопКар', 'АвтоИнвест',
-      'ДилерПро', 'КарЛайн', 'АвтоТрейд', 'ДрайвМоторс', 'ЭлитАвто',
-    ],
+    names: makeBusinessNames(["Motors", "Autos", "Vehicles", "Autohouse", "Showroom", "Carriage", "Autotrade", "Autoplaza", "Motorhall", "Carworks"]),
   },
   {
     id: 'it',
@@ -110,11 +84,7 @@ export const businessCategories: BusinessCategory[] = [
     emoji: '💻',
     cost: 478999,
     baseIncomePerHour: 24000,
-    names: [
-      'ТехноСофт', 'КодПлюс', 'ДатаПро', 'АйТиЛаб', 'СофтЛайн',
-      'НейроТех', 'КлаудПро', 'ДевХаб', 'ПиксельПро', 'КодЭлит',
-      'ТехноВижн', 'АйТиСтарт', 'ДиджиталПро', 'СмартТех', 'ВебМастер',
-    ],
+    names: makeBusinessNames(["Systems", "Software", "Computing", "Digital", "Networks", "Logic", "Code", "Cloud", "Dataworks", "Technologies"]),
   },
   {
     id: 'bank',
@@ -122,11 +92,7 @@ export const businessCategories: BusinessCategory[] = [
     emoji: '🏦',
     cost: 10000000,
     baseIncomePerHour: 500000,
-    names: [
-      'ФинансБанк', 'КапиталПлюс', 'ИнвестБанк', 'ПрофитБанк', 'ЭлитБанк',
-      'СтратегБанк', 'ПремьерБанк', 'АльфаКапитал', 'ТрастБанк', 'ФондБанк',
-      'МегаБанк', 'ГлобалФинанс', 'ПроБанк', 'ЮнионБанк', 'СитиБанкПро',
-    ],
+    names: makeBusinessNames(["Bank", "Capital", "Finance", "Treasury", "Savings", "Credit", "Trust", "Holdings", "Securities", "Funds"]),
   },
   {
     id: 'sports',
@@ -134,11 +100,7 @@ export const businessCategories: BusinessCategory[] = [
     emoji: '⚽',
     cost: 50000000,
     baseIncomePerHour: 2500000,
-    names: [
-      'СпортЭлит', 'ЧемпионПро', 'ФитнесТоп', 'АтлетикПлюс', 'ВикториКлуб',
-      'ТитанСпорт', 'ОлимпикПро', 'СпортИнвест', 'СуперКлуб', 'ЛигаПро',
-      'ЮнайтедСпорт', 'ДинамоПро', 'СпартаКлуб', 'ФениксСпорт', 'АренаПро',
-    ],
+    names: makeBusinessNames(["Athletics", "Sport", "Arena", "Fitness", "Training", "Club", "Stadium", "Racing", "Champions", "Team"]),
   },
   {
     id: 'oil',
@@ -146,11 +108,7 @@ export const businessCategories: BusinessCategory[] = [
     emoji: '🛢️',
     cost: 1500000000,
     baseIncomePerHour: 75000000,
-    names: [
-      'НефтьПро', 'ГазИнвест', 'ОйлПлюс', 'ПетроЛайн', 'ЭнергоТоп',
-      'НефтеГаз', 'ОйлЭлит', 'ПетроИнвест', 'ЭнергоПро', 'ГазПлюс',
-      'НефтьЛидер', 'ОйлСити', 'ПетроМакс', 'ЭнергоСила', 'ТопОйл',
-    ],
+    names: makeBusinessNames(["Energy", "Petroleum", "Gas", "Drilling", "Refining", "Fuels", "Pipelines", "Resources", "Petrochem", "Oilfields"]),
   },
   {
     id: 'airline',
@@ -158,17 +116,13 @@ export const businessCategories: BusinessCategory[] = [
     emoji: '✈️',
     cost: 13000000000,
     baseIncomePerHour: 650000000,
-    names: [
-      'СкайЛайн', 'АэроПлюс', 'ФлайПро', 'ВингсЭлит', 'ДжетАир',
-      'ЭйрТоп', 'АэроИнвест', 'СкайПро', 'ФлайЛюкс', 'АвиаЭлит',
-      'ВингсПро', 'ДжетЛайн', 'ЭйрСити', 'АэроМакс', 'СкайИнвест',
-    ],
+    names: makeBusinessNames(["Airways", "Airlines", "Aviation", "Flights", "Air", "Skyways", "Airlift", "Wings", "Airfleet", "Airlink"]),
   },
 ];
 
 export function generateBusinessName(categoryId: string): string {
   const category = businessCategories.find(c => c.id === categoryId);
-  if (!category) return 'Бизнес';
+  if (!category) return 'Business';
   const randomIndex = Math.floor(Math.random() * category.names.length);
   return category.names[randomIndex];
 }

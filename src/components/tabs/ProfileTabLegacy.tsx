@@ -1,5 +1,5 @@
 import { errorInfo } from '@/lib/errors';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useGame, formatMoney } from '@/context/GameContext';
 import { useAuth } from '@/context/AuthContext';
 import { useI18n } from '@/i18n/I18nContext';
@@ -13,6 +13,8 @@ import ProfileCustomization, { getBannerCss, getFrameClass } from '@/components/
 import PlayerProfileDialog from '@/components/profile/PlayerProfileDialog';
 import { toast } from 'sonner';
 import { withTimeout } from '@/lib/async';
+import ShowcaseCard from '@/components/profile/ShowcaseCard';
+import { readShowcase, resolveShowcaseItem, normalizePlayerQuery, type ShowcaseItem } from '@/lib/showcase';
 import { calculateFinancialSnapshot } from '@/game/finance';
 
 const COLORS = ['#87CEEB', '#ADD8E6', '#B0E0E6', '#5F9EA0', '#4682B4', '#6495ED', '#7EC8E3', '#00CED1'];
@@ -22,9 +24,9 @@ const SHOWCASE_CATEGORIES_KEYS = [
   { id: 'planes', i18n: 'profile.cat_plane', icon: 'plane' },
   { id: 'ships', i18n: 'profile.cat_ship', icon: 'ship' },
   { id: 'nft', i18n: 'profile.cat_nft', icon: 'nft' },
-  { id: 'favorite_username', i18n: 'Любимый username', icon: 'tag' },
-  { id: 'favorite_plate', i18n: 'Любимый номер', icon: 'plate' },
-  { id: 'art', i18n: 'Любимая живопись', icon: 'art' },
+  { id: 'favorite_username', i18n: 'profile.favorite_username', icon: 'tag' },
+  { id: 'favorite_plate', i18n: 'profile.favorite_plate', icon: 'plate' },
+  { id: 'art', i18n: 'profile.cat_art', icon: 'art' },
 ];
 
 interface PlayerUsername {
@@ -55,6 +57,9 @@ const ProfileTabLegacy: React.FC<{ variant?: 'modern' | 'classic' }> = ({ varian
   const { user, avatarEmoji, avatarUrl, username } = useAuth();
   const { t } = useI18n();
   const [showcaseSelections, setShowcaseSelections] = useState<Record<string, string>>({});
+  const [showcaseSnapshots, setShowcaseSnapshots] = useState<ShowcaseItem[]>([]);
+  const [showcaseSaving, setShowcaseSaving] = useState(false);
+  const saveInFlight = useRef(false);
   const [showcaseLoaded, setShowcaseLoaded] = useState(false);
   const [openPicker, setOpenPicker] = useState<string | null>(null);
 
@@ -73,13 +78,20 @@ const ProfileTabLegacy: React.FC<{ variant?: 'modern' | 'classic' }> = ({ varian
 
   // Load player_id, usernames, customization, and showcase
   useEffect(() => {
+    setShowcaseLoaded(false);
+    setShowcaseSnapshots([]);
+    setShowcaseSelections({});
+    setMyUsernames([]);
     if (!user?.id) return;
+    let cancelled = false;
     const load = async () => {
-      const { data: profile } = await supabase
+      const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('player_id, banner_url, frame_id, status_text, showcase_items')
         .eq('user_id', user.id)
         .single();
+      if (cancelled) return;
+      if (profileError) toast.error('Не удалось загрузить витрину. Повторно откройте профиль.');
       if (profile?.player_id) setPlayerId(profile.player_id as number);
       if (profile) {
         setCustomization({
@@ -88,7 +100,8 @@ const ProfileTabLegacy: React.FC<{ variant?: 'modern' | 'classic' }> = ({ varian
           status_text: profile.status_text || '',
         });
         // Reconstruct selections from showcase_items
-        const items = profile.showcase_items as Array<{ cat: string; id: string }> | null;
+        const items = readShowcase(profile.showcase_items);
+        setShowcaseSnapshots(items);
         if (Array.isArray(items)) {
           const sel: Record<string, string> = {};
           items.forEach(it => { if (it?.cat && it?.id) sel[it.cat] = it.id; });
@@ -102,16 +115,18 @@ const ProfileTabLegacy: React.FC<{ variant?: 'modern' | 'classic' }> = ({ varian
         .select('id, username, is_active')
         .eq('user_id', user.id)
         .order('created_at', { ascending: true });
-      if (unames) setMyUsernames(unames as PlayerUsername[]);
+      if (!cancelled && unames) setMyUsernames(unames as PlayerUsername[]);
     };
-    load();
+    load().catch(() => toast.error(t('profile.search_error')));
+    return () => { cancelled = true; };
   }, [user?.id]);
 
   const activeUsernames = myUsernames.filter(u => u.is_active);
 
   // Search players — single batched query via public_player_stats view
   const handleSearch = async () => {
-    const q = searchQuery.trim().replace(/^@/, '');
+    if (searchLoading) return;
+    const q = normalizePlayerQuery(searchQuery);
     if (!q) return;
     setSearchLoading(true);
     setSearchCompleted(false);
@@ -164,9 +179,9 @@ const ProfileTabLegacy: React.FC<{ variant?: 'modern' | 'classic' }> = ({ varian
     { name: t('profile.stat_islands'), value: islands },
   ].filter(d => d.value > 0);
 
-  const getShowcaseItems = (catId: string): Array<{ id: string; name: string; image?: string }> => {
-    if (catId === 'favorite_username') return activeUsernames.map(item => ({ id: `username:${item.id}`, name: `@${item.username}` }));
-    if (catId === 'favorite_plate') return licensePlates.map(item => ({ id: `plate:${item.id}`, name: item.text }));
+  const getShowcaseItems = (catId: string): Array<{ id: string; name: string; image?: string; country?: string }> => {
+    if (catId === 'favorite_username') return myUsernames.map(item => ({ id: `username:${item.id}`, name: `@${item.username}` }));
+    if (catId === 'favorite_plate') return licensePlates.map(item => ({ id: `plate:${item.id}`, name: item.text, country: item.country }));
     if (catId === 'nft') return accPurchased.filter(i => i.category === 'nft');
     if (catId === 'art') return accPurchased.filter(i => i.category === 'art');
     return shopPurchased.filter(i => i.category === catId);
@@ -176,21 +191,23 @@ const ProfileTabLegacy: React.FC<{ variant?: 'modern' | 'classic' }> = ({ varian
     const items = getShowcaseItems(catId);
     const selectedId = showcaseSelections[catId];
     if (!selectedId) return null;
-    return items.find(i => i.id === selectedId) || null;
+    return resolveShowcaseItem(catId, selectedId, items, showcaseSnapshots);
   };
 
   const saveShowcaseSelection = async (catId: string, itemId: string) => {
-    if (!user?.id || !showcaseLoaded) return;
+    if (!user?.id || !showcaseLoaded || saveInFlight.current) return;
+    saveInFlight.current = true;
+    setShowcaseSaving(true);
     const next = { ...showcaseSelections, [catId]: itemId };
     setShowcaseSelections(next);
     setOpenPicker(null);
     const snapshot = SHOWCASE_CATEGORIES_KEYS.map(cat => {
       const selectedId = next[cat.id];
       if (!selectedId) return null;
-      const sel = getShowcaseItems(cat.id).find(item => item.id === selectedId);
+      const sel = resolveShowcaseItem(cat.id, selectedId, getShowcaseItems(cat.id), showcaseSnapshots);
       if (!sel) return null;
       const data = [...shopItemsData, ...accessoryItemsData].find(d => d.id === sel.id);
-      return { cat: cat.id, id: sel.id, name: sel.name, image: sel.image || data?.image || '' };
+      return { cat: cat.id, id: sel.id, name: sel.name, image: sel.image || data?.image || '', ...(sel.country ? { country: sel.country } : {}) };
     }).filter(Boolean);
     try {
       const { error } = await supabase.rpc('update_profile_extras', {
@@ -198,11 +215,15 @@ const ProfileTabLegacy: React.FC<{ variant?: 'modern' | 'classic' }> = ({ varian
         p_showcase: snapshot,
       });
       if (error) throw error;
+      setShowcaseSnapshots(readShowcase(snapshot));
       toast.success(itemId ? 'Витрина сохранена' : 'Предмет убран с витрины');
     } catch (caught: unknown) {
       const error = errorInfo(caught);
       toast.error(error.message || 'Не удалось сохранить витрину');
       setShowcaseSelections(showcaseSelections);
+    } finally {
+      saveInFlight.current = false;
+      setShowcaseSaving(false);
     }
   };
 
@@ -374,30 +395,18 @@ const ProfileTabLegacy: React.FC<{ variant?: 'modern' | 'classic' }> = ({ varian
             return (
               <div key={cat.id} className="relative min-w-0">
                 <button
+                  disabled={!showcaseLoaded || showcaseSaving}
                   onClick={() => items.length > 0 || selected ? setOpenPicker(isOpen ? null : cat.id) : undefined}
                   className={`w-full min-w-0 bg-card ${modern ? 'rounded-2xl hover:-translate-y-0.5 hover:shadow-lg' : 'rounded-xl'} border overflow-hidden text-center transition-all hover:border-primary/50`}
                 >
-                  {itemData?.image ? (
-                    <div className="relative h-36 overflow-hidden sm:h-40">
-                      <img src={itemData.image} alt={selected?.name} className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
-                      {carPlate && (
-                        <div className="absolute top-1.5 right-1.5">
-                          <LicensePlate plate={carPlate as LicensePlateData} size="sm" />
-                        </div>
-                      )}
-                      <div className="absolute bottom-0 left-0 right-0 p-2">
-                        <p className="text-[10px] text-white/70">{t(cat.i18n)}</p>
-                        <p className="max-w-full truncate font-mono-game text-[11px] font-semibold text-white">{selected?.name}</p>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="p-3">
-                      <span className="block mb-1"><GameIcon name={cat.icon} size={32} themed /></span>
+                  {selected ? <ShowcaseCard item={{ ...selected, image: itemData?.image }} /> : (
+                    <div className="flex min-h-40 flex-col items-center justify-center gap-2 p-4">
+                      <GameIcon name={cat.icon} size={32} themed />
                       <p className="text-xs text-muted-foreground">{t(cat.i18n)}</p>
-                      <p className="font-mono-game text-xs font-semibold text-foreground truncate">—</p>
+                      <p className="text-xs text-muted-foreground">{t('profile.select')}</p>
                     </div>
                   )}
+                  {carPlate && <div className="py-2"><LicensePlate plate={carPlate as LicensePlateData} size="sm" /></div>}
                   {(items.length > 0 || selected) && (
                     <p className="text-[10px] text-primary py-1">{selected ? t('profile.select') : 'Выставить'}</p>
                   )}
@@ -406,6 +415,7 @@ const ProfileTabLegacy: React.FC<{ variant?: 'modern' | 'classic' }> = ({ varian
                 {isOpen && (items.length > 0 || selected) && (
                   <div className="absolute z-20 top-full mt-1 left-0 w-full min-w-0 bg-card border rounded-xl shadow-lg max-h-40 overflow-x-hidden overflow-y-auto">
                     <button
+                      disabled={showcaseSaving}
                       onClick={() => saveShowcaseSelection(cat.id, '')}
                       className={`w-full border-b px-3 py-2 text-left text-xs hover:bg-muted/50 ${!showcaseSelections[cat.id] ? 'bg-primary/10' : ''}`}
                     >
@@ -414,6 +424,7 @@ const ProfileTabLegacy: React.FC<{ variant?: 'modern' | 'classic' }> = ({ varian
                     {items.map(item => (
                       <button
                         key={item.id}
+                        disabled={showcaseSaving}
                         onClick={() => {
                           saveShowcaseSelection(cat.id, item.id);
                         }}

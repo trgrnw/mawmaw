@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { formatMoney } from '@/context/GameContext';
@@ -7,6 +7,9 @@ import { Textarea } from '@/components/ui/textarea';
 import GameIcon from '@/components/GameIcon';
 import { getBannerCss, getFrameClass } from '@/components/profile/ProfileCustomization';
 import { Heart, Star, Trash2, Loader2, Flag } from 'lucide-react';
+import ShowcaseCard from './ShowcaseCard';
+import { readShowcase, type ShowcaseItem } from '@/lib/showcase';
+import { withTimeout } from '@/lib/async';
 import ReportPlayerDialog from '@/components/profile/ReportPlayerDialog';
 
 interface Review {
@@ -18,7 +21,6 @@ interface Review {
   created_at: string;
 }
 
-interface ShowcaseItem { cat: string; id: string; name: string; image: string }
 
 interface PublicProfile {
   user_id: string;
@@ -66,6 +68,7 @@ interface Props {
 const PlayerProfileDialog: React.FC<Props> = ({ userId, onClose }) => {
   const { user } = useAuth();
   const [data, setData] = useState<FullData | null>(null);
+  const requestId = useRef(0);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState<'info' | 'showcase' | 'reviews'>('info');
@@ -79,30 +82,35 @@ const PlayerProfileDialog: React.FC<Props> = ({ userId, onClose }) => {
 
   const load = useCallback(async () => {
     if (!userId) return;
+    const request = ++requestId.current;
     setLoading(true);
     setError(null);
-    const { data: res, error: rpcErr } = await supabase.rpc('get_player_public_profile', {
-      p_profile_user_id: userId,
-    });
-    if (rpcErr) setError(rpcErr.message);
-    else if (res) {
-      const fd = res as unknown as FullData;
+    try {
+      const { data: res, error: rpcErr } = await withTimeout(supabase.rpc('get_player_public_profile', {
+        p_profile_user_id: userId,
+      }), 10000, 'Не удалось загрузить профиль. Попробуйте ещё раз.');
+      if (request !== requestId.current) return;
+      if (rpcErr) throw rpcErr;
+      const fd = res as unknown as FullData | null;
+      if (!fd?.profile) throw new Error('Профиль игрока не найден');
+      fd.profile.showcase_items = readShowcase(fd.profile.showcase_items);
       setData(fd);
-      if (fd.my_review) {
-        setReviewText(fd.my_review.text);
-        setReviewRating(fd.my_review.rating);
-      } else {
-        setReviewText('');
-        setReviewRating(5);
-      }
+      setReviewText(fd.my_review?.text || '');
+      setReviewRating(fd.my_review?.rating || 5);
       setEditing(false);
+    } catch (error) {
+      if (request === requestId.current) setError(error instanceof Error ? error.message : 'Не удалось загрузить профиль');
+    } finally {
+      if (request === requestId.current) setLoading(false);
     }
-    setLoading(false);
   }, [userId]);
 
   useEffect(() => {
-    if (userId) load();
-    else setData(null);
+    setData(null);
+    setTab('info');
+    setReportOpen(false);
+    if (userId) void load();
+    return () => { requestId.current++; };
   }, [userId, load]);
 
   const isSelf = user?.id === userId;
@@ -151,7 +159,7 @@ const PlayerProfileDialog: React.FC<Props> = ({ userId, onClose }) => {
           <DialogDescription>Полная общедоступная информация</DialogDescription>
         </DialogHeader>
 
-        {loading || !data || !p ? (
+        {error && !data ? <div role="alert" className="space-y-3 rounded-xl border border-destructive/30 p-5 text-sm"><p>{error}</p><button onClick={load} className="text-primary underline">Повторить</button></div> : loading || !data || !p ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
           </div>
@@ -236,9 +244,7 @@ const PlayerProfileDialog: React.FC<Props> = ({ userId, onClose }) => {
               </div>
             ) : tab === 'showcase' ? (
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                {Array.isArray(p.showcase_items) && p.showcase_items.length ? p.showcase_items.map((it, idx) => <div key={`${it.cat}-${it.id}-${idx}`} className="overflow-hidden rounded-2xl border bg-card">
-                  {it.image ? <div className="aspect-[4/3] relative overflow-hidden"><img src={it.image} alt={it.name} className="h-full w-full object-cover" /><div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" /><div className="absolute inset-x-0 bottom-0 p-3"><p className="truncate text-sm font-bold text-white">{it.name}</p><p className="text-[10px] uppercase text-white/60">{it.cat}</p></div></div> : <div className="p-5"><p className="text-xs text-muted-foreground">{it.cat}</p><p className="font-semibold">{it.name}</p></div>}
-                </div>) : <div className="col-span-full rounded-2xl border border-dashed p-10 text-center text-sm text-muted-foreground">Игрок пока ничего не добавил в витрину</div>}
+                {p.showcase_items?.length ? p.showcase_items.map((it, idx) => <ShowcaseCard key={`${it.cat}-${it.id}-${idx}`} item={it} />) : <div className="col-span-full rounded-2xl border border-dashed p-10 text-center text-sm text-muted-foreground">Игрок пока ничего не добавил в витрину</div>}
               </div>
             ) : (
               <div className="space-y-3">

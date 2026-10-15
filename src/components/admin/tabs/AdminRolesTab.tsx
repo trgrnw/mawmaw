@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/context/AuthContext';
+import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -19,6 +21,9 @@ interface RoleRow {
 }
 
 const AdminRolesTab: React.FC = () => {
+  const { user } = useAuth();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
   const [roles, setRoles] = useState<RoleRow[]>([]);
   const [profiles, setProfiles] = useState<{ user_id: string; username: string }[]>([]);
   const [selectedUser, setSelectedUser] = useState('');
@@ -30,9 +35,11 @@ const AdminRolesTab: React.FC = () => {
   }, []);
 
   const loadData = async () => {
-    const { data: rolesData } = await supabase.from('user_roles').select('*');
-    const { data: profilesData } = await supabase.from('profiles').select('user_id, username');
+    setError('');
+    const { data: rolesData, error: rolesError } = await supabase.from('user_roles').select('*');
+    const { data: profilesData, error: profilesError } = await supabase.from('profiles').select('user_id, username');
 
+    if (rolesError || profilesError) { setError(rolesError?.message || profilesError?.message || 'Ошибка загрузки'); return; }
     if (profilesData) setProfiles(profilesData);
 
     if (rolesData && profilesData) {
@@ -45,44 +52,29 @@ const AdminRolesTab: React.FC = () => {
   };
 
   const addRole = async () => {
-    if (!selectedUser || !selectedRole) return;
+    if (!selectedUser || !selectedRole || busy) return;
+    if (roles.some(row => row.user_id === selectedUser && row.role === selectedRole)) { toast.info('Такая роль уже назначена'); return; }
+    setBusy(true);
 
-    const { error } = await supabase.from('user_roles').insert({
-      user_id: selectedUser,
-      role: selectedRole as 'owner' | 'admin' | 'moderator',
-    });
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
-    const user = (await supabase.auth.getUser()).data.user;
-    await supabase.from('admin_logs').insert({
-      admin_user_id: user?.id,
-      action: 'assign_role',
-      target_user_id: selectedUser,
-      details: { role: selectedRole },
-    });
-
+    const { error } = await supabase.rpc('admin_manage_role', { p_user_id: selectedUser, p_role: selectedRole, p_remove: false });
+    if (error) { setBusy(false); toast.error(error.message); return; }
+    toast.success('Роль назначена');
+    setBusy(false);
     setSelectedUser('');
     setSelectedRole('');
     loadData();
   };
 
   const removeRole = async (id: string, targetUserId: string, role: string) => {
+    if (busy) return;
+    if (targetUserId === user?.id && role === 'owner') { toast.error('Нельзя снять собственную роль владельца через панель'); return; }
     if (!confirm(`Удалить роль ${role}?`)) return;
+    setBusy(true);
 
-    await supabase.from('user_roles').delete().eq('id', id);
-
-    const user = (await supabase.auth.getUser()).data.user;
-    await supabase.from('admin_logs').insert({
-      admin_user_id: user?.id,
-      action: 'remove_role',
-      target_user_id: targetUserId,
-      details: { role },
-    });
-
+    const { error } = await supabase.rpc('admin_manage_role', { p_user_id: targetUserId, p_role: role, p_remove: true });
+    if (error) { setBusy(false); toast.error(error.message); return; }
+    toast.success('Роль удалена');
+    setBusy(false);
     loadData();
   };
 
@@ -103,6 +95,7 @@ const AdminRolesTab: React.FC = () => {
     <div className="space-y-4">
       <h2 className="text-2xl font-bold">👑 Управление ролями</h2>
 
+      {error && <p role="alert" className="rounded-xl border border-destructive/30 p-3 text-sm text-destructive">{error}</p>}
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Назначить роль</CardTitle>
@@ -136,7 +129,7 @@ const AdminRolesTab: React.FC = () => {
                 <SelectItem value="owner">Owner</SelectItem>
               </SelectContent>
             </Select>
-            <Button onClick={addRole} disabled={!selectedUser || !selectedRole}>
+            <Button onClick={addRole} disabled={busy || !selectedUser || !selectedRole}>
               Назначить
             </Button>
           </div>
@@ -159,7 +152,7 @@ const AdminRolesTab: React.FC = () => {
                     {r.role}
                   </span>
                 </div>
-                <Button variant="ghost" size="sm" onClick={() => removeRole(r.id, r.user_id, r.role)}>
+                <Button variant="ghost" size="sm" disabled={busy || (r.user_id === user?.id && r.role === 'owner')} onClick={() => removeRole(r.id, r.user_id, r.role)}>
                   ❌
                 </Button>
               </div>

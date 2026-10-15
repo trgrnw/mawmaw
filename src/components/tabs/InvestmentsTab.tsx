@@ -1,5 +1,5 @@
 import React, { memo, useMemo, useState } from 'react';
-import { Line, LineChart, ResponsiveContainer, Tooltip, YAxis } from 'recharts';
+import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Search, ShieldCheck, TrendingUp, Building2 } from 'lucide-react';
 import { toast } from 'sonner';
 import AssetLogo from '@/components/AssetLogo';
@@ -18,7 +18,7 @@ type CryptoFilter = 'actual' | 'growing' | 'falling' | 'cap_high' | 'cap_low' | 
 const changePercent = (v: number[]) => v.length < 2 || !v[0] ? 0 : ((v.at(-1)! - v[0]) / v[0]) * 100;
 const units = (v: number) => v >= 1e12 ? `${(v / 1e12).toFixed(2)} трлн` : v >= 1e9 ? `${(v / 1e9).toFixed(2)} млрд` : v >= 1e6 ? `${(v / 1e6).toFixed(2)} млн` : v.toLocaleString('ru-RU');
 
-const Chart = memo(({ data, positive }: { data: Array<{ time: number; value: number }>; positive: boolean }) => <ResponsiveContainer width="100%" height={225}><LineChart data={data}><YAxis hide domain={['dataMin','dataMax']} /><Tooltip labelFormatter={v => new Date(Number(v)).toLocaleString('ru-RU')} formatter={(v: number) => [`$${v.toLocaleString(undefined, { maximumFractionDigits: 4 })}`, 'Цена']} contentStyle={{ background:'hsl(var(--card))', border:'1px solid hsl(var(--border))', borderRadius:12 }} /><Line type="monotone" dataKey="value" stroke={positive ? '#22c55e' : '#ef4444'} strokeWidth={2.5} dot={false} isAnimationActive={false} /></LineChart></ResponsiveContainer>);
+const Chart = memo(({ data, positive }: { data: Array<{ time: number; value: number }>; positive: boolean }) => <ResponsiveContainer width="100%" height={225}><LineChart data={data}><XAxis dataKey="time" type="number" domain={['dataMin', 'dataMax']} hide /><YAxis hide domain={['dataMin','dataMax']} /><Tooltip labelFormatter={v => new Date(Number(v)).toLocaleString('ru-RU')} formatter={(v: number) => [`$${v.toLocaleString(undefined, { maximumFractionDigits: 4 })}`, 'Цена']} contentStyle={{ background:'hsl(var(--card))', border:'1px solid hsl(var(--border))', borderRadius:12 }} /><Line type="monotone" dataKey="value" stroke={positive ? '#22c55e' : '#ef4444'} strokeWidth={2.5} dot={false} isAnimationActive={false} /></LineChart></ResponsiveContainer>);
 Chart.displayName = 'Chart';
 
 const InvestmentsTab: React.FC = () => {

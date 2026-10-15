@@ -24,6 +24,8 @@ export function useAdminAuth() {
       return;
     }
 
+    let cancelled = false;
+    setState({ isLoading: true, isStaff: false, role: null });
     const checkRole = async () => {
       try {
         const { data, error } = await supabase
@@ -31,13 +33,15 @@ export function useAdminAuth() {
           .select('role')
           .eq('user_id', user.id);
 
+        if (cancelled) return;
         if (error || !data || data.length === 0) {
           setState(prev => ({ ...prev, isLoading: false, isStaff: false, role: null }));
           return;
         }
 
         // Pick highest role: owner > admin > moderator
-        const roles = data.map(d => d.role as AppRole);
+        const roles = data.map(d => d.role).filter((role): role is AppRole => ['owner', 'admin', 'moderator'].includes(role));
+        if (!roles.length) { setState({ isLoading: false, isStaff: false, role: null }); return; }
         const role = roles.includes('owner') ? 'owner' : roles.includes('admin') ? 'admin' : 'moderator';
         setState(prev => ({
           ...prev,
@@ -46,12 +50,14 @@ export function useAdminAuth() {
           role,
         }));
       } catch {
+        if (cancelled) return;
         setState(prev => ({ ...prev, isLoading: false, isStaff: false, role: null }));
       }
     };
 
-    checkRole();
-  }, [user]);
+    void checkRole();
+    return () => { cancelled = true; };
+  }, [user?.id]);
 
   const canManageUsers = state.role === 'owner' || state.role === 'admin';
   const canManageEconomy = state.role === 'owner' || state.role === 'admin';

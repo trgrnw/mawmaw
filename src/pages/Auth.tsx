@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useI18n } from '@/i18n/I18nContext';
-import { Link, Navigate } from 'react-router-dom';
+import { Link, Navigate, useLocation } from 'react-router-dom';
 import { Eye, EyeOff, Languages, AlertTriangle } from 'lucide-react';
 import GameIcon from '@/components/GameIcon';
 
 const Auth: React.FC = () => {
+  const location = useLocation();
   const { user, loading, signUp, signIn } = useAuth();
   const { t } = useI18n();
   const [isLogin, setIsLogin] = useState(true);
@@ -27,7 +28,7 @@ const Auth: React.FC = () => {
     </div>
   );
 
-  if (user) return <Navigate to="/" replace />;
+  if (user) return <Navigate to={location.state?.from === '/admin' ? '/admin' : '/'} replace />;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

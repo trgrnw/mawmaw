@@ -30,6 +30,7 @@ const AdminCasinoTab: React.FC = () => {
   return (
     <div className="space-y-4">
       <h2 className="text-2xl font-bold">🎰 Статистика казино</h2>
+      <p className="text-sm text-muted-foreground">Показатели по последним 50 ставкам.</p>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card>

@@ -36,7 +36,6 @@ const mainMenuItems: { id: TabId; i18nKey: string; icon: string }[] = [
   { id: 'investments', i18nKey: 'nav.investments', icon: 'investments' },
   { id: 'casino', i18nKey: 'nav.casino', icon: 'casino' },
   { id: 'market', i18nKey: 'nav.market', icon: 'market' },
-  { id: 'notifications', i18nKey: 'nav.notifications', icon: 'notifications' },
   { id: 'clans', i18nKey: 'nav.clans', icon: 'users' },
   { id: 'profile', i18nKey: 'nav.profile', icon: 'profile' },
   { id: 'forbes', i18nKey: 'nav.forbes', icon: 'forbes' },
@@ -44,6 +43,7 @@ const mainMenuItems: { id: TabId; i18nKey: string; icon: string }[] = [
 ];
 
 const bottomMenuItems: { id: TabId; i18nKey: string; icon: string }[] = [
+  { id: 'notifications', i18nKey: 'nav.notifications', icon: 'notifications' },
   { id: 'support', i18nKey: 'nav.support', icon: 'faq' },
   { id: 'settings', i18nKey: 'nav.settings', icon: 'settings' },
   { id: 'authors', i18nKey: 'nav.authors', icon: 'authors' },
@@ -204,7 +204,7 @@ const GameLayout: React.FC = () => {
 
         {/* Staff & auth */}
         <div className="mt-auto space-y-1">
-          {isStaff && (
+          {user && (
             <Link
               to="/admin"
               className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-yellow-600 dark:text-yellow-400 hover:bg-sidebar-btn-hover"
