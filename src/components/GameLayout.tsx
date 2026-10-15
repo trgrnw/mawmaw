@@ -204,7 +204,7 @@ const GameLayout: React.FC = () => {
 
         {/* Staff & auth */}
         <div className="mt-auto space-y-1">
-          {isStaff && (
+          {user && (
             <Link
               to="/admin"
               className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-yellow-600 dark:text-yellow-400 hover:bg-sidebar-btn-hover"

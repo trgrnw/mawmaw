@@ -124,11 +124,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const updateProfile = async (data: { username?: string; avatarEmoji?: string; avatarUrl?: string }) => {
     if (!user) return;
-    const updates: Record<string, string> = {};
-    if (data.username !== undefined) updates.username = data.username;
-    if (data.avatarEmoji !== undefined) updates.avatar_emoji = data.avatarEmoji;
-    if (data.avatarUrl !== undefined) updates.avatar_url = data.avatarUrl;
-    await supabase.from('profiles').update(updates).eq('user_id', user.id);
+    if (data.username !== undefined) {
+      const result = await supabase.rpc('change_profile_nickname', { p_nickname: data.username });
+      if (result.error) throw result.error;
+    }
+    if (data.avatarEmoji !== undefined) {
+      const result = await supabase.from('profiles').update({ avatar_emoji: data.avatarEmoji }).eq('user_id', user.id);
+      if (result.error) throw result.error;
+    }
+    if (data.avatarUrl !== undefined) {
+      const result = await supabase.rpc('update_profile_extras', { p_avatar_url: data.avatarUrl, p_showcase: null });
+      if (result.error) throw result.error;
+    }
     if (data.username) setUsername(data.username);
     if (data.avatarEmoji) setAvatarEmoji(data.avatarEmoji);
     if (data.avatarUrl !== undefined) setAvatarUrl(data.avatarUrl);

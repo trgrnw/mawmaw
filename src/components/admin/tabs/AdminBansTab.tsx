@@ -74,17 +74,15 @@ const AdminBansTab: React.FC = () => {
   useEffect(() => { load(); }, []);
 
   const handleSearchTarget = async () => {
-    const q = targetQuery.trim().replace(/^@/, '');
+    const q = targetQuery.trim().replace(/^[@#]/, '');
     if (!q) return;
     setTargetResult(null);
-    const numId = parseInt(q);
-    if (!isNaN(numId)) {
-      const { data } = await supabase.from('profiles').select('user_id, username, player_id').eq('player_id', numId).maybeSingle();
-      if (data) { setTargetResult(data); return; }
-    }
-    const { data } = await supabase.from('profiles').select('user_id, username, player_id').ilike('username', `%${q}%`).limit(1).maybeSingle();
-    if (data) setTargetResult(data);
-    else toast.error('Игрок не найден');
+    const { data, error } = await supabase.rpc('search_public_players', { p_query:q });
+    if (error) { toast.error(error.message); return; }
+    const exact = (data || []).find(player => String(player.player_id) === q || player.username.toLowerCase() === q.toLowerCase());
+    if (exact) setTargetResult(exact);
+    else if (data?.length === 1) setTargetResult(data[0]);
+    else toast.error(data?.length ? 'Несколько совпадений. Укажите точный ник или ID игрока.' : 'Игрок не найден');
   };
 
   const handleBan = async () => {
@@ -117,7 +115,7 @@ const AdminBansTab: React.FC = () => {
   };
 
   const filtered = bans.filter(b => {
-    if (showActive && !b.is_active) return false;
+    if (showActive && (!b.is_active || (b.expires_at && Date.parse(b.expires_at) <= Date.now()))) return false;
     if (!search.trim()) return true;
     const q = search.toLowerCase();
     return b.username.toLowerCase().includes(q) || b.player_id.toString().includes(q);

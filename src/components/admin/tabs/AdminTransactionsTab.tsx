@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { formatMoney } from '@/context/GameContext';
+import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 
 interface ProfileLite {
@@ -48,6 +49,8 @@ const AdminTransactionsTab: React.FC = () => {
       supabase.from('admin_logs').select('*').eq('target_user_id', p.user_id).order('created_at', { ascending: false }).limit(100),
       supabase.from('net_worth_history').select('*').eq('user_id', p.user_id).order('recorded_at', { ascending: false }).limit(100),
     ]);
+    const failed = [market, casino, admin, netWorth].find(result => result.error);
+    if (failed?.error) toast.error(failed.error.message);
     setMarketTx(market.data || []);
     setCasinoTx(casino.data || []);
     setAdminTx(admin.data || []);

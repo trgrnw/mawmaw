@@ -28,14 +28,14 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ role }) => {
   const canManageEconomy = canManageUsers;
   const canManageRoles = role === 'owner';
   const canViewStats = true;
-  const [activeTab, setActiveTab] = useState<AdminTab>(role === 'moderator' ? 'transactions' : 'players');
+  const [activeTab, setActiveTab] = useState<AdminTab>(role === 'moderator' ? 'tickets' : 'players');
 
   const tabs: { id: AdminTab; label: string; icon: string; allowed: boolean }[] = [
     { id: 'players', label: 'Игроки', icon: 'users', allowed: canManageUsers },
-    { id: 'tickets', label: 'Тикеты', icon: 'faq', allowed: canManageUsers },
-    { id: 'reports', label: 'Жалобы', icon: 'logout', allowed: canManageUsers },
-    { id: 'transactions', label: 'Транзакции', icon: 'earning', allowed: canViewStats },
-    { id: 'bans', label: 'Баны', icon: 'logout', allowed: canManageUsers },
+    { id: 'tickets', label: 'Поддержка', icon: 'faq', allowed: true },
+    { id: 'reports', label: 'Жалобы', icon: 'logout', allowed: true },
+    { id: 'transactions', label: 'Транзакции', icon: 'earning', allowed: canManageUsers },
+    { id: 'bans', label: 'Баны', icon: 'logout', allowed: true },
     { id: 'economy', label: 'Экономика', icon: 'earning', allowed: canManageEconomy },
     { id: 'casino', label: 'Казино', icon: 'casino', allowed: canViewStats },
     { id: 'announcements', label: 'Объявления', icon: 'announce', allowed: canManageUsers },

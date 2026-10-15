@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { toast } from 'sonner';
 import { Textarea } from '@/components/ui/textarea';
 
 interface Announcement {
@@ -15,6 +16,7 @@ interface Announcement {
 
 const AdminAnnouncementsTab: React.FC = () => {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [busy, setBusy] = useState(false);
   const [title, setTitle] = useState('');
   const [message, setMessage] = useState('');
 
@@ -23,42 +25,40 @@ const AdminAnnouncementsTab: React.FC = () => {
   }, []);
 
   const loadAnnouncements = async () => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('announcements')
       .select('*')
       .order('created_at', { ascending: false });
+    if (error) { toast.error(error.message); return; }
     setAnnouncements((data as Announcement[]) || []);
   };
 
   const createAnnouncement = async () => {
     if (!title.trim() || !message.trim()) return;
 
-    const user = (await supabase.auth.getUser()).data.user;
-    await supabase.from('announcements').insert({
-      title: title.trim(),
-      message: message.trim(),
-      created_by: user?.id,
-    });
-
-    await supabase.from('admin_logs').insert({
-      admin_user_id: user?.id,
-      action: 'create_announcement',
-      details: { title: title.trim() },
-    });
-
+    if (busy) return;
+    setBusy(true);
+    const { error } = await supabase.rpc('admin_save_announcement', { p_id: null, p_title: title.trim(), p_message: message.trim(), p_active: true, p_delete: false });
+    setBusy(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success('Объявление опубликовано');
     setTitle('');
     setMessage('');
     loadAnnouncements();
   };
 
   const toggleAnnouncement = async (id: string, isActive: boolean) => {
-    await supabase.from('announcements').update({ is_active: !isActive }).eq('id', id);
+    if (busy) return; setBusy(true);
+    const { error } = await supabase.rpc('admin_save_announcement', { p_id:id,p_title:null,p_message:null,p_active:!isActive,p_delete:false });
+    setBusy(false); if (error) { toast.error(error.message); return; }
     loadAnnouncements();
   };
 
   const deleteAnnouncement = async (id: string) => {
     if (!confirm('Удалить объявление?')) return;
-    await supabase.from('announcements').delete().eq('id', id);
+    if (busy) return; setBusy(true);
+    const { error } = await supabase.rpc('admin_save_announcement', { p_id:id,p_title:null,p_message:null,p_active:null,p_delete:true });
+    setBusy(false); if (error) { toast.error(error.message); return; }
     loadAnnouncements();
   };
 
@@ -72,17 +72,17 @@ const AdminAnnouncementsTab: React.FC = () => {
         </CardHeader>
         <CardContent className="space-y-3">
           <Input
-            placeholder="Заголовок"
+            maxLength={120} placeholder="Заголовок"
             value={title}
             onChange={e => setTitle(e.target.value)}
           />
           <Textarea
-            placeholder="Текст объявления..."
+            maxLength={2000} placeholder="Текст объявления..."
             value={message}
             onChange={e => setMessage(e.target.value)}
             rows={3}
           />
-          <Button onClick={createAnnouncement} disabled={!title.trim() || !message.trim()}>
+          <Button onClick={createAnnouncement} disabled={busy || title.trim().length < 3 || !message.trim()}>
             Опубликовать
           </Button>
         </CardContent>

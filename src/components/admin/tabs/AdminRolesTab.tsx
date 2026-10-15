@@ -56,26 +56,9 @@ const AdminRolesTab: React.FC = () => {
     if (roles.some(row => row.user_id === selectedUser && row.role === selectedRole)) { toast.info('Такая роль уже назначена'); return; }
     setBusy(true);
 
-    const { error } = await supabase.from('user_roles').insert({
-      user_id: selectedUser,
-      role: selectedRole as 'owner' | 'admin' | 'moderator',
-    });
-
-    if (error) {
-      setBusy(false);
-      toast.error(error.message);
-      return;
-    }
-
-    const { error: logError } = await supabase.from('admin_logs').insert({
-      admin_user_id: user?.id,
-      action: 'assign_role',
-      target_user_id: selectedUser,
-      details: { role: selectedRole },
-    });
-
-    if (logError) toast.error('Роль назначена, но запись в журнал не сохранена');
-    else toast.success('Роль назначена');
+    const { error } = await supabase.rpc('admin_manage_role', { p_user_id: selectedUser, p_role: selectedRole, p_remove: false });
+    if (error) { setBusy(false); toast.error(error.message); return; }
+    toast.success('Роль назначена');
     setBusy(false);
     setSelectedUser('');
     setSelectedRole('');
@@ -88,18 +71,9 @@ const AdminRolesTab: React.FC = () => {
     if (!confirm(`Удалить роль ${role}?`)) return;
     setBusy(true);
 
-    const { error } = await supabase.from('user_roles').delete().eq('id', id);
+    const { error } = await supabase.rpc('admin_manage_role', { p_user_id: targetUserId, p_role: role, p_remove: true });
     if (error) { setBusy(false); toast.error(error.message); return; }
-
-    const { error: logError } = await supabase.from('admin_logs').insert({
-      admin_user_id: user?.id,
-      action: 'remove_role',
-      target_user_id: targetUserId,
-      details: { role },
-    });
-
-    if (logError) toast.error('Роль удалена, но запись в журнал не сохранена');
-    else toast.success('Роль удалена');
+    toast.success('Роль удалена');
     setBusy(false);
     loadData();
   };

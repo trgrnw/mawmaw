@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 
 interface Report {
@@ -33,9 +34,10 @@ const AdminReportsTab: React.FC = () => {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('player_reports').select('*')
       .eq('status', filter).order('created_at', { ascending: false }).limit(200);
+    if (error) { toast.error(error.message); setLoading(false); return; }
     const list = (data as Report[]) || [];
     setReports(list);
     const ids = Array.from(new Set(list.flatMap((r: Report) => [r.reporter_user_id, r.reported_user_id]))) as string[];
@@ -52,8 +54,9 @@ const AdminReportsTab: React.FC = () => {
 
   const setStatus = async (id: string, status: 'accepted' | 'rejected') => {
     setBusy(id);
-    await supabase.rpc('update_report_status', { p_report_id: id, p_status: status, p_note: null });
+    const { error } = await supabase.rpc('update_report_status', { p_report_id: id, p_status: status, p_note: null });
     setBusy(null);
+    if (error) { toast.error(error.message); return; }
     load();
   };
 

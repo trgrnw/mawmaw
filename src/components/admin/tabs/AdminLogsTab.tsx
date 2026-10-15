@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface LogRow {
@@ -23,12 +24,13 @@ const AdminLogsTab: React.FC = () => {
 
   const loadLogs = async () => {
     setLoading(true);
-    const { data: logsData } = await supabase
+    const { data: logsData, error } = await supabase
       .from('admin_logs')
       .select('*')
       .order('created_at', { ascending: false })
       .limit(100);
 
+    if (error) { toast.error(error.message); setLoading(false); return; }
     const { data: profiles } = await supabase.from('profiles').select('user_id, username');
 
     const merged = (logsData || []).map(l => ({
@@ -43,6 +45,12 @@ const AdminLogsTab: React.FC = () => {
 
   const getActionLabel = (action: string) => {
     const map: Record<string, string> = {
+      close_ticket: 'Закрытие тикета',
+      reopen_ticket: 'Повторное открытие тикета',
+      save_announcement: 'Изменение объявления',
+      admin_adjust_balance: 'Корректировка баланса',
+      ban_user: 'Блокировка игрока',
+      unban_user: 'Снятие блокировки',
       change_balance: '💰 Изменение баланса',
       reset_progress: '🗑️ Сброс прогресса',
       assign_role: '👑 Назначение роли',

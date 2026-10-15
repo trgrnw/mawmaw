@@ -1066,6 +1066,9 @@ export type Database = {
       }
     }
     Functions: {
+      admin_manage_role: { Args: { p_user_id: string; p_role: string; p_remove: boolean }; Returns: Json }
+      admin_save_announcement: { Args: { p_id: string | null; p_title: string | null; p_message: string | null; p_active: boolean | null; p_delete: boolean }; Returns: Json }
+      admin_has_permission: { Args: { p_permission: string }; Returns: boolean }
       admin_set_player_balance: { Args: {p_user_id: string; p_balance: number}; Returns: Json }
       admin_reset_player: { Args: {p_user_id: string}; Returns: Json }
       admin_adjust_balance: { Args: { p_user_id: string; p_delta: number; p_reason: string }; Returns: Json }
