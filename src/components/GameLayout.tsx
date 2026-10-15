@@ -1,3 +1,5 @@
+import { useNotifications } from '@/context/NotificationContext';
+import LimitedStoreTab from '@/components/tabs/LimitedStoreTab';
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useGame, formatMoney } from '@/context/GameContext';
@@ -25,7 +27,7 @@ import ClansTab from '@/components/tabs/ClansTab';
 import SupportTab from '@/components/tabs/SupportTab';
 import NotificationsTab from '@/components/tabs/NotificationsTab';
 
-type TabId = 'earning' | 'upgrade' | 'business' | 'shop' | 'accessories' | 'investments' | 'casino' | 'market' | 'notifications' | 'clans' | 'profile' | 'forbes' | 'achievements' | 'settings' | 'authors' | 'faq' | 'support';
+type TabId = 'earning' | 'upgrade' | 'business' | 'shop' | 'accessories' | 'investments' | 'casino' | 'market' | 'notifications' | 'limited' | 'clans' | 'profile' | 'forbes' | 'achievements' | 'settings' | 'authors' | 'faq' | 'support';
 
 const mainMenuItems: { id: TabId; i18nKey: string; icon: string }[] = [
   { id: 'earning', i18nKey: 'nav.earning', icon: 'earning' },
@@ -63,6 +65,7 @@ const tabComponents: Record<TabId, React.FC> = {
   casino: CasinoTab,
   market: MarketTab,
   notifications: NotificationsTab,
+  limited: LimitedStoreTab,
   clans: ClansTab,
   support: SupportTab,
   settings: SettingsTab,
@@ -73,11 +76,14 @@ const tabComponents: Record<TabId, React.FC> = {
 const GameLayout: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabId>('earning');
   const [isStaff, setIsStaff] = useState(false);
-  const [notificationCount, setNotificationCount] = useState(0);
+  const [inviteCount, setNotificationCount] = useState(0);
+  const { count, supportCount, announcement, mark } = useNotifications();
+  const notificationCount = count + inviteCount;
   const { balance, playerXp, playerLevel, levelStartXp, nextLevelXp, levelProgress } = useGame();
   const { user, username } = useAuth();
   const { t } = useI18n();
   const ActiveComponent = tabComponents[activeTab];
+  useEffect(() => { const navigate = (event: Event) => { const tab=(event as CustomEvent).detail; if(tab in tabComponents)setActiveTab(tab); }; window.addEventListener('game-navigation',navigate); return()=>window.removeEventListener('game-navigation',navigate); }, []);
 
   useEffect(() => {
     if (!user) {
@@ -155,6 +161,7 @@ const GameLayout: React.FC = () => {
     >
       <GameIcon name={item.icon} size={18} themed />
       <span>{t(item.i18nKey)}</span>
+      {item.id === 'support' && supportCount > 0 && <span className="ml-auto rounded-full bg-emerald-500 px-1.5 text-[10px] font-bold text-white">{supportCount}</span>}
       {item.id === 'notifications' && notificationCount > 0 && (
         <span className="ml-auto min-w-5 rounded-full bg-violet-500 px-1.5 py-0.5 text-center text-[10px] font-bold text-white">{notificationCount > 99 ? '99+' : notificationCount}</span>
       )}
@@ -193,6 +200,8 @@ const GameLayout: React.FC = () => {
           </div>
         </div>
 
+        <button onClick={()=>setActiveTab('notifications')} className="mx-2 mb-2 flex items-center justify-between rounded-xl border border-violet-500/20 bg-violet-500/5 px-3 py-2 text-xs"><span className="flex items-center gap-2"><GameIcon name="notifications" size={15}/>Входящие</span>{notificationCount>0&&<span className="rounded-full bg-violet-500 px-1.5 text-white">{notificationCount>99?'99+':notificationCount}</span>}</button>
+        <button onClick={()=>setActiveTab('limited')} className={`mx-2 mb-2 flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold ${activeTab==='limited'?'border-amber-500/50 bg-amber-500/10':'border-amber-500/20'}`}><GameIcon name="sparkles" size={16}/>Лимитированные выпуски</button>
         {/* Main menu */}
         {mainMenuItems.map(renderMenuButton)}
 
@@ -225,7 +234,8 @@ const GameLayout: React.FC = () => {
         </div>
       </aside>
 
-      <main className="flex-1 overflow-y-auto p-6 lg:p-8">
+      <main className="min-w-0 flex-1 overflow-y-auto p-6 lg:p-8">
+        {announcement&&<section className="mb-5 flex items-start gap-3 rounded-2xl border border-sky-500/25 bg-sky-500/5 p-4" role="status"><GameIcon name="announce" size={22} className="shrink-0 text-sky-500"/><div className="min-w-0 flex-1"><p className="text-xs font-medium text-sky-500">Объявление команды</p><h3 className="mt-1 font-semibold">{announcement.title}</h3><p className="mt-1 whitespace-pre-wrap break-words text-sm text-muted-foreground">{announcement.message}</p></div><button aria-label="Прочитать и скрыть объявление" onClick={()=>void mark(announcement.id,'read').catch(()=>toast.error('Не удалось отметить объявление прочитанным'))} className="rounded-lg px-2 py-1 text-sm text-muted-foreground">✕</button></section>}
         <ActiveComponent />
       </main>
     </div>

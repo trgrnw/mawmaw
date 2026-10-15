@@ -382,6 +382,9 @@ function calculateBusinessNet(business) {
 }
 function migrateBusiness(business) {
   if (business.status) return business;
+  if (!businessCategories.some((item) => item.id === business.categoryId) && !businessMergers.some((item) => item.id === business.categoryId)) {
+    return { ...business, status: "operating", registrationNumber: `LEGACY-${business.id}`, completedSetupSteps: [], employeesHired: 0, employeesRequired: 0, grossRevenuePerHour: business.incomePerHour, salaryCostPerHour: 0, operatingCostPerHour: 0, taxCostPerHour: 0 };
+  }
   const plan = getBusinessPlan(business.categoryId);
   const salary = plan.employeesRequired * plan.salaryPerEmployee;
   const gross = (business.incomePerHour + salary + plan.operatingCostPerHour) / (1 - plan.taxRate);
@@ -894,7 +897,7 @@ var xp = (s, n) => {
 };
 function createGameState(saved = {}, now = Date.now()) {
   const upgrades = defaultUpgrades.map((u) => ({ id: u.id, currentLevel: Math.min(u.maxLevel, Math.floor(amount(list(saved.upgradeLevels).find((x) => x.id === u.id)?.currentLevel))) }));
-  const numeric = Object.fromEntries(["balance", "playerXp", "totalEarnedClick", "totalEarnedBusiness", "totalEarnedRent", "totalEarnedDividends", "totalEarnedTrading", "totalEarnedCrypto", "totalEarnedGems"].map((k) => [k, amount(saved[k])]));
+  const numeric = Object.fromEntries(["balance", "limitedAssetWorth", "playerXp", "totalEarnedClick", "totalEarnedBusiness", "totalEarnedRent", "totalEarnedDividends", "totalEarnedTrading", "totalEarnedCrypto", "totalEarnedGems"].map((k) => [k, amount(saved[k])]));
   return {
     ...numeric,
     playerXp: Math.min(1e9, amount(saved.playerXp)),
@@ -902,13 +905,7 @@ function createGameState(saved = {}, now = Date.now()) {
     upgradeLevels: upgrades,
     purchasedShop: list(saved.purchasedShop).filter((x) => shopItemsData.some((i) => i.id === x.id)).map((x) => ({ id: x.id, price: amount(x.price, shopItemsData.find((i) => i.id === x.id).basePrice) })),
     purchasedAccessories: list(saved.purchasedAccessories).map((x) => typeof x === "string" ? { id: x, price: accessoryItemsData.find((i) => i.id === x)?.basePrice || 0 } : x).filter((x) => accessoryItemsData.some((i) => i.id === x.id)),
-    businesses: list(saved.businesses).flatMap((b) => {
-      try {
-        return [migrateBusiness(b)];
-      } catch {
-        return [];
-      }
-    }),
+    businesses: list(saved.businesses).map(migrateBusiness),
     stockHoldings: list(saved.stockHoldings).filter((h) => stockAssets.some((a) => a.id === h.assetId) && amount(h.quantity) > 0),
     cryptoHoldings: list(saved.cryptoHoldings).filter((h) => cryptoAssets.some((a) => a.id === h.assetId) && amount(h.quantity) > 0),
     licensePlates: list(saved.licensePlates),
@@ -970,7 +967,7 @@ function updateAchievements(s, now = Date.now()) {
 }
 function assetWorth(s, now = Date.now()) {
   const { prices } = income(s, now);
-  return Math.min(MAX_MONEY, s.purchasedShop.reduce((n, x) => n + x.price, 0) + s.purchasedAccessories.reduce((n, x) => n + x.price, 0) + s.businesses.reduce((n, x) => n + x.investmentCost, 0) + s.stockHoldings.reduce((n, h) => n + prices.stocks[h.assetId].current * h.quantity, 0) + s.cryptoHoldings.reduce((n, h) => n + prices.crypto[h.assetId].current * h.quantity, 0));
+  return Math.min(MAX_MONEY, s.limitedAssetWorth + s.purchasedShop.reduce((n, x) => n + x.price, 0) + s.purchasedAccessories.reduce((n, x) => n + x.price, 0) + s.businesses.reduce((n, x) => n + x.investmentCost, 0) + s.stockHoldings.reduce((n, h) => n + prices.stocks[h.assetId].current * h.quantity, 0) + s.cryptoHoldings.reduce((n, h) => n + prices.crypto[h.assetId].current * h.quantity, 0));
 }
 function applyGameAction(s, action, now = Date.now()) {
   const a = action.args, id = String(a.id || ""), business = () => {
@@ -1155,6 +1152,7 @@ function applyGameAction(s, action, now = Date.now()) {
       break;
     }
     case "buy-plate": {
+      if (s.licensePlates.length >= 1e3) throw Error("\u041A\u043E\u043B\u043B\u0435\u043A\u0446\u0438\u044F \u043D\u043E\u043C\u0435\u0440\u043E\u0432 \u0437\u0430\u043F\u043E\u043B\u043D\u0435\u043D\u0430");
       const country = String(a.country || "");
       if (!PLATE_COUNTRIES.some((c) => c.id === country) || typeof a.isCustom !== "boolean") throw Error("\u041D\u0435\u0432\u0435\u0440\u043D\u044B\u0439 \u043D\u043E\u043C\u0435\u0440");
       let text = a.isCustom ? String(a.text || "").trim().toUpperCase() : generateRandomPlate(country);

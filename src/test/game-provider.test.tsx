@@ -9,7 +9,7 @@ vi.mock('@/integrations/supabase/client', () => ({ supabase: { functions: { invo
 vi.mock('sonner', () => ({ toast: { error: vi.fn() } }));
 function Probe() {
   const game = useGame();
-  return <><output data-testid="balance">{game.balance}</output><output data-testid="power">{game.clickPower}</output><button onClick={() => { for(let i=0;i<5;i++)game.click(); }}>Click five</button><button onClick={() => game.buyUpgrade('click-power')}>Upgrade</button><button onClick={() => { void game.syncProgress().catch(() => undefined); }}>Sync</button></>;
+  return <><output data-testid="balance">{game.balance}</output><output data-testid="power">{game.clickPower}</output><button onClick={() => { for(let i=0;i<5;i++)game.click(); }}>Click five</button><button onClick={() => game.obtainEntrepreneurLicense('US')}>License</button><button onClick={() => game.buyUpgrade('click-power')}>Upgrade</button><button onClick={() => { void game.syncProgress().catch(() => undefined); }}>Sync</button></>;
 }
 beforeEach(() => { localStorage.clear(); mocks.user=null; mocks.invoke.mockReset(); mocks.from.mockReset(); mocks.from.mockReturnValue({select: () => ({eq: () => ({maybeSingle: async () => ({data:{game_state:createGameState({balance:100})},error:null})})})}); });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
@@ -24,6 +24,13 @@ describe('provider persistence', () => {
     first.unmount();render(<GameProvider><Probe/></GameProvider>);
     expect(screen.getByTestId('balance').textContent).toBe('955');
     expect(screen.getByTestId('power').textContent).toBe('2');
+  });
+  it('writes a paid guest license before the autosave timer or unmount', () => {
+    localStorage.setItem('gameState_guest',JSON.stringify(createGameState({balance:10000})));
+    render(<GameProvider><Probe/></GameProvider>);
+    fireEvent.click(screen.getByText('License'));
+    const stored=JSON.parse(localStorage.getItem('gameState_guest')!);
+    expect(stored.entrepreneurLicense.country).toBe('US');expect(stored.balance).toBeLessThan(10000);
   });
   it('loads the existing cloud save and journals clicks when the sync function is missing', async () => {
     mocks.user={id:'offline-account'};

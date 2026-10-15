@@ -49,6 +49,8 @@ function LocalGameProvider({ children }: { children: React.ReactNode }) {
   const dispatch = useCallback((type: string, args: Record<string, unknown> = {}) => {
     try {
       const next = applyGameAction(structuredClone(current.current), { id: crypto.randomUUID(), type, args });
+      // Commit purchases immediately; a browser/process exit can precede the timer.
+      localStorage.setItem('gameState_guest', JSON.stringify(next));
       current.current = next; setState(next);
       return true;
     } catch (error) {

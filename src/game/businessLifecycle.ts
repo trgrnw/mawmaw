@@ -77,6 +77,10 @@ export function calculateBusinessNet(business: Business): number {
 
 export function migrateBusiness(business: Business): Business {
   if (business.status) return business;
+  // A catalog rename must never destroy an already-owned legacy enterprise.
+  if (!businessCategories.some(item => item.id === business.categoryId) && !businessMergers.some(item => item.id === business.categoryId)) {
+    return { ...business, status: 'operating', registrationNumber: `LEGACY-${business.id}`, completedSetupSteps: [], employeesHired: 0, employeesRequired: 0, grossRevenuePerHour: business.incomePerHour, salaryCostPerHour: 0, operatingCostPerHour: 0, taxCostPerHour: 0 };
+  }
   const plan = getBusinessPlan(business.categoryId);
   const salary = plan.employeesRequired * plan.salaryPerEmployee;
   const gross = (business.incomePerHour + salary + plan.operatingCostPerHour) / (1 - plan.taxRate);

@@ -14,6 +14,11 @@ export type Database = {
   }
   public: {
     Tables: {
+      player_notifications: { Row: { [K in keyof import('@/lib/liveOps').PlayerNotification]: import('@/lib/liveOps').PlayerNotification[K] }; Insert: never; Update: never; Relationships: [] }
+      limited_releases: { Row: { [K in keyof import('@/lib/liveOps').LimitedRelease]: import('@/lib/liveOps').LimitedRelease[K] }; Insert: never; Update: never; Relationships: [] }
+      limited_claims: { Row: { id: string; release_id: string; user_id: string; serial: number; item_snapshot: Json; claimed_at: string }; Insert: never; Update: never; Relationships: [] }
+      business_licenses: { Row: { user_id: string; document: Json; confirmed_at: string }; Insert: never; Update: never; Relationships: [] }
+
       admin_logs: {
         Row: {
           id: string
@@ -1066,6 +1071,13 @@ export type Database = {
       }
     }
     Functions: {
+      mark_ticket_notifications: { Args: { p_ticket_id: string }; Returns: undefined }
+      sync_player_notifications: { Args: Record<PropertyKey, never>; Returns: undefined }
+      set_notification_state: { Args: { p_id: string | null; p_state: string }; Returns: undefined }
+      admin_save_release: { Args: { p_id: string | null; p_data: Json }; Returns: Json }
+      claim_limited_release: { Args: { p_release_id: string }; Returns: Json }
+      get_limited_collection: { Args: { p_user_id: string }; Returns: Json }
+
       admin_manage_role: { Args: { p_user_id: string; p_role: string; p_remove: boolean }; Returns: Json }
       admin_save_announcement: { Args: { p_id: string | null; p_title: string | null; p_message: string | null; p_active: boolean | null; p_delete: boolean }; Returns: Json }
       admin_has_permission: { Args: { p_permission: string }; Returns: boolean }

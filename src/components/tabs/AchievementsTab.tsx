@@ -1,3 +1,4 @@
+import LimitedStoreTab from './LimitedStoreTab';
 import React, { useState, useMemo } from 'react';
 import { useGame, formatMoney } from '@/context/GameContext';
 import { useI18n } from '@/i18n/I18nContext';
@@ -92,6 +93,7 @@ const AchievementsTab: React.FC = () => {
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
+      <LimitedStoreTab kind="achievement"/>
       {/* Header */}
       <div>
         <h2 className="text-2xl font-bold text-foreground flex items-center gap-2">
