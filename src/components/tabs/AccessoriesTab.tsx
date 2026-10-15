@@ -1,3 +1,4 @@
+import LimitedCollection from '@/components/limited/LimitedCollection';
 import { errorInfo } from '@/lib/errors';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useGame, formatMoney } from '@/context/GameContext';
@@ -315,6 +316,7 @@ const AccessoriesTab: React.FC = () => {
 
   return (
     <div className="max-w-6xl space-y-5 pb-8">
+      <LimitedCollection userId={user?.id} kind="nft"/>
       <div className="relative overflow-hidden rounded-3xl border border-fuchsia-500/20 bg-card p-5 sm:p-7">
         <div className="absolute -right-16 -top-20 h-60 w-60 rounded-full bg-fuchsia-500/10 blur-3xl" />
         <div className="relative flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between"><div><div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-fuchsia-500/15"><GameIcon name="accessories" size={26} themed /></div><h2 className="text-2xl font-bold sm:text-3xl">{t('acc.title')}</h2><p className="mt-1 text-sm text-muted-foreground">{t('acc.subtitle')}</p></div><div className="grid grid-cols-3 gap-2"><div className="rounded-2xl border bg-background/50 px-3 py-3"><p className="text-[10px] text-muted-foreground">{t('acc.balance')}</p><p className="font-mono-game text-sm font-bold">${formatMoney(balance)}</p></div><div className="rounded-2xl border bg-background/50 px-3 py-3"><p className="text-[10px] text-muted-foreground">{t('acc.purchased')}</p><p className="font-mono-game text-sm font-bold">{accessoryItems.filter(i => i.purchased).length}/{accessoryItemsData.length}</p></div><div className="rounded-2xl border bg-background/50 px-3 py-3"><p className="text-[10px] text-muted-foreground">Номера</p><p className="font-mono-game text-sm font-bold">{licensePlates.length}</p></div></div></div>

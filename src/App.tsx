@@ -10,22 +10,26 @@ import Auth from "./pages/Auth";
 import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
 
+import { NotificationProvider } from "@/context/NotificationContext";
+import InterfaceSounds from "@/components/InterfaceSounds";
+
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
+      <InterfaceSounds />
       <Toaster />
       <Sonner />
       <I18nProvider>
         <HashRouter>
           <AuthProvider>
-            <Routes>
+            <NotificationProvider><Routes>
               <Route path="/" element={<Index />} />
               <Route path="/auth" element={<Auth />} />
               <Route path="/admin" element={<Admin />} />
               <Route path="*" element={<NotFound />} />
-            </Routes>
+            </Routes></NotificationProvider>
           </AuthProvider>
         </HashRouter>
       </I18nProvider>

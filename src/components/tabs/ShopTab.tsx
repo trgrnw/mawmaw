@@ -1,3 +1,5 @@
+import LimitedCollection from '@/components/limited/LimitedCollection';
+import { useAuth } from '@/context/AuthContext';
 import React, { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import GameIcon from '@/components/GameIcon';
@@ -10,6 +12,7 @@ import { useI18n } from '@/i18n/I18nContext';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 const ShopTab: React.FC = () => {
+  const { user } = useAuth();
   const { t, td } = useI18n();
   const { balance, shopItems, buyShopItem, sellShopItem, syncProgress } = useGame();
   const [showPurchases, setShowPurchases] = useState(false);
@@ -88,6 +91,7 @@ const ShopTab: React.FC = () => {
       </div>
     </header>
 
+    {showPurchases&&<LimitedCollection userId={user?.id} kind="car"/>}
     <section>
       <div className="mb-3 flex items-end justify-between"><div><h3 className="text-lg font-bold">Категории</h3><p className="text-xs text-muted-foreground">Выберите раздел магазина</p></div><button onClick={() => setShowPurchases(value => !value)} className={`rounded-xl border px-3 py-2 text-xs font-semibold ${showPurchases ? 'border-cyan-400 bg-cyan-500/10 text-cyan-400' : 'hover:bg-muted'}`}><GameIcon name="shop" size={14} className="mr-1 inline" /> Покупки ({ownedCount})</button></div>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">

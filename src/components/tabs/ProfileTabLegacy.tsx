@@ -1,3 +1,5 @@
+import type { LimitedClaim } from '@/lib/liveOps';
+import LimitedCollection from '@/components/limited/LimitedCollection';
 import { errorInfo } from '@/lib/errors';
 import React, { useState, useEffect, useRef } from 'react';
 import { useGame, formatMoney } from '@/context/GameContext';
@@ -49,7 +51,7 @@ interface SearchResult {
 const ProfileTabLegacy: React.FC<{ variant?: 'modern' | 'classic' }> = ({ variant = 'classic' }) => {
   const modern = variant === 'modern';
   const {
-    balance, netWorth, totalEarnedClick, totalEarnedBusiness, totalEarnedRent,
+    balance, netWorth, limitedAssetWorth, totalEarnedClick, totalEarnedBusiness, totalEarnedRent,
     totalEarnedDividends, totalEarnedTrading, totalEarnedCrypto, totalEarnedGems,
     shopItems, accessoryItems, businesses, clickPower,
     stockHoldings, cryptoHoldings, stockPrices, cryptoPrices, licensePlates,
@@ -65,6 +67,8 @@ const ProfileTabLegacy: React.FC<{ variant?: 'modern' | 'classic' }> = ({ varian
 
   // Player info
   const [playerId, setPlayerId] = useState<number | null>(null);
+  const [limitedItems,setLimitedItems] = useState<LimitedClaim[]>([]);
+  useEffect(()=>{let alive=true;setLimitedItems([]);if(user?.id)void supabase.rpc('get_limited_collection',{p_user_id:user.id}).then(({data})=>{if(alive)setLimitedItems((data as unknown as LimitedClaim[])||[]);});return()=>{alive=false;};},[user?.id]);
   const [myUsernames, setMyUsernames] = useState<PlayerUsername[]>([]);
   const [customization, setCustomization] = useState({ banner_url: 'default', frame_id: 'none', status_text: '' });
   const [customOpen, setCustomOpen] = useState(false);
@@ -169,6 +173,7 @@ const ProfileTabLegacy: React.FC<{ variant?: 'modern' | 'classic' }> = ({ varian
 
   const chartData = [
     { name: t('profile.stat_balance'), value: balance },
+    { name: 'Событийная коллекция', value: limitedAssetWorth },
     { name: t('profile.stat_business'), value: businessTotal },
     { name: t('profile.stat_stocks'), value: stockValue },
     { name: t('profile.stat_realestate'), value: realEstate },
@@ -182,9 +187,10 @@ const ProfileTabLegacy: React.FC<{ variant?: 'modern' | 'classic' }> = ({ varian
   const getShowcaseItems = (catId: string): Array<{ id: string; name: string; image?: string; country?: string }> => {
     if (catId === 'favorite_username') return myUsernames.map(item => ({ id: `username:${item.id}`, name: `@${item.username}` }));
     if (catId === 'favorite_plate') return licensePlates.map(item => ({ id: `plate:${item.id}`, name: item.text, country: item.country }));
-    if (catId === 'nft') return accPurchased.filter(i => i.category === 'nft');
+    const limited = limitedItems.filter(c=>c.item_snapshot.kind===(catId==='cars'?'car':catId)).map(c=>({id:`limited:${c.id}`,name:c.item_snapshot.title,image:c.item_snapshot.image_url||undefined}));
+    if (catId === 'nft') return [...accPurchased.filter(i => i.category === 'nft'),...limited];
     if (catId === 'art') return accPurchased.filter(i => i.category === 'art');
-    return shopPurchased.filter(i => i.category === catId);
+    return [...shopPurchased.filter(i => i.category === catId),...limited];
   };
 
   const getSelectedShowcase = (catId: string) => {
@@ -381,6 +387,7 @@ const ProfileTabLegacy: React.FC<{ variant?: 'modern' | 'classic' }> = ({ varian
 
       <PlayerProfileDialog userId={selectedUserId} onClose={() => setSelectedUserId(null)} />
 
+      <LimitedCollection userId={user?.id}/>
       {/* Showcase */}
       <div>
         <h3 className="text-sm font-semibold text-foreground mb-3">{t('profile.showcase')}</h3>
@@ -399,7 +406,7 @@ const ProfileTabLegacy: React.FC<{ variant?: 'modern' | 'classic' }> = ({ varian
                   onClick={() => items.length > 0 || selected ? setOpenPicker(isOpen ? null : cat.id) : undefined}
                   className={`w-full min-w-0 bg-card ${modern ? 'rounded-2xl hover:-translate-y-0.5 hover:shadow-lg' : 'rounded-xl'} border overflow-hidden text-center transition-all hover:border-primary/50`}
                 >
-                  {selected ? <ShowcaseCard item={{ ...selected, image: itemData?.image }} /> : (
+                  {selected ? <ShowcaseCard item={{ ...selected, image: selected.image || itemData?.image }} /> : (
                     <div className="flex min-h-40 flex-col items-center justify-center gap-2 p-4">
                       <GameIcon name={cat.icon} size={32} themed />
                       <p className="text-xs text-muted-foreground">{t(cat.i18n)}</p>

@@ -24,7 +24,9 @@ export default function SupportDesk({ staff = false, forcedCategory, hideHeading
   const [category, setCategory] = useState<TicketCategory>(forcedCategory || 'other');
   const active = tickets.find(ticket => ticket.id === selectedId) || null;
   const currentSelection = useRef(selectedId); currentSelection.current = selectedId;
+  const lastReadMessage = useRef('');
   const listRequest = useRef(0), chatRequest = useRef(0), operation = useRef(false);
+  useEffect(()=>{const id=sessionStorage.getItem('supportOpenTicket');if(!id||!user||staff)return;sessionStorage.removeItem('supportOpenTicket');let alive=true;void supabase.from('support_tickets').select('status').eq('id',id).maybeSingle().then(({data})=>{if(alive&&data){setFolder(data.status==='closed'?'closed':'active');setSelectedId(id);}});return()=>{alive=false;};},[user?.id,staff]);
   const load = useCallback(async () => {
     if (!user) { setLoading(false); return; }
     const request = ++listRequest.current;
@@ -51,10 +53,14 @@ export default function SupportDesk({ staff = false, forcedCategory, hideHeading
     try {
       const result = await withTimeout(supabase.from('ticket_messages').select('*').eq('ticket_id',id).order('created_at',{ascending:false}).order('id').limit(500),10000,'Переписка не загрузилась. Попробуйте ещё раз.');
       if (result.error) throw result.error;
-      if (request === chatRequest.current && currentSelection.current === id) setMessages((result.data as SupportMessage[] || []).reverse());
+      if (request === chatRequest.current && currentSelection.current === id) {
+        setMessages((result.data as SupportMessage[] || []).reverse());
+        const newest=result.data?.[result.data.length-1]?.id;
+        if(!staff&&newest&&lastReadMessage.current!==newest&&!document.hidden){lastReadMessage.current=newest;const read=await supabase.rpc('mark_ticket_notifications',{p_ticket_id:id});if(!read.error)window.dispatchEvent(new CustomEvent('notifications-changed'));}
+      }
     } catch (error) { if (request === chatRequest.current && currentSelection.current === id) setError(messageOf(error)); }
     finally { if (request === chatRequest.current) setChatLoading(false); }
-  },[]);
+  },[staff]);
   useEffect(()=>{
     setTickets([]); setSelectedId(null); setMessages([]); setLoading(true); setError('');
     void load(); const timer=setInterval(()=>{if(!document.hidden)void load();},6000);

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { User, Session } from '@supabase/supabase-js';
 
@@ -37,10 +37,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isBanned, setIsBanned] = useState(false);
   const [banChecked, setBanChecked] = useState(false);
 
+  const activeUserId = useRef<string | null>(null);
+  activeUserId.current = user?.id || null;
+
   const checkBan = async (userId: string) => {
-    const { data } = await supabase.rpc('is_user_banned', { _user_id: userId });
-    setIsBanned(!!data);
-    setBanChecked(true);
+    try {
+      const { data, error } = await supabase.rpc('is_user_banned', { _user_id: userId });
+      if (activeUserId.current !== userId) return;
+      if (error) { setBanChecked(false); return; }
+      setIsBanned(!!data); setBanChecked(true);
+    } catch { setBanChecked(false); }
   };
 
   const refreshBan = async () => {
@@ -49,6 +55,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (activeUserId.current !== (session?.user?.id || null)) setBanChecked(!session?.user);
+      activeUserId.current = session?.user?.id || null;
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
@@ -64,6 +72,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     supabase.auth.getSession().then(({ data: { session } }) => {
+      if (activeUserId.current !== (session?.user?.id || null)) setBanChecked(!session?.user);
+      activeUserId.current = session?.user?.id || null;
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
@@ -77,6 +87,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return () => subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const id = user.id;
+    const check = () => { void checkBan(id); };
+    const timer = setInterval(check, 15000);
+    window.addEventListener('focus', check);
+    const channel = supabase.channel(`account-ban-${id}`).on('postgres_changes', {event:'*',schema:'public',table:'user_bans',filter:`user_id=eq.${id}`},check).subscribe();
+    return () => { clearInterval(timer); window.removeEventListener('focus',check); void supabase.removeChannel(channel); };
+  },[user?.id]);
 
   const fetchProfile = async (userId: string) => {
     const { data } = await supabase

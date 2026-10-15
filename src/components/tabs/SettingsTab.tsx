@@ -1,3 +1,4 @@
+import { soundSettings, playUiSound } from '@/lib/sounds';
 import React from 'react';
 import { Sun, Moon, Globe, LogOut, Pencil, Loader2 } from 'lucide-react';
 import { useI18n } from '@/i18n/I18nContext';
@@ -68,6 +69,11 @@ const SettingsTab: React.FC = () => {
     localStorage.setItem('theme', theme);
   }, [theme]);
 
+  const [audio, setAudio] = React.useState(soundSettings);
+  const changeAudio = (enabled: boolean, volume: number) => {
+    localStorage.setItem('uiSoundEnabled', String(enabled)); localStorage.setItem('uiSoundVolume', String(volume)); setAudio({enabled, volume});
+  };
+
   return (
     <div className="max-w-xl mx-auto space-y-6">
       <div>
@@ -132,6 +138,11 @@ const SettingsTab: React.FC = () => {
         </div>
       )}
 
+      <section className="rounded-2xl border bg-card p-5 space-y-4">
+        <div className="flex items-center justify-between gap-4"><div><h3 className="text-sm font-semibold">Звуки интерфейса</h3><p className="mt-1 text-xs text-muted-foreground">Мягкие синтезированные звуки кнопок и уведомлений</p></div><input aria-label="Включить звуки" type="checkbox" checked={audio.enabled} onChange={e => changeAudio(e.target.checked, audio.volume)} /></div>
+        <label className="flex items-center gap-4 text-xs">Громкость<input aria-label="Громкость звуков" className="flex-1 accent-primary" type="range" min="0" max="0.5" step="0.01" value={audio.volume} onChange={e => changeAudio(audio.enabled, Number(e.target.value))} />{Math.round(audio.volume * 200)}%</label>
+        <button className="rounded-lg border px-3 py-2 text-xs" onClick={() => playUiSound('notice')}>Прослушать</button>
+      </section>
       {/* Theme */}
       <div className="bg-card rounded-2xl border p-5 space-y-4">
         <div className="flex items-center gap-3">

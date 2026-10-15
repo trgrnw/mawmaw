@@ -16,6 +16,7 @@ export const MAX_MONEY = 1e14;
 export interface GameAction { id: string; type: string; args: Record<string, unknown> }
 export interface EngineState {
   [key:string]: unknown;
+  limitedAssetWorth: number;
   balance: number; playerXp: number; clickPower: number;
   totalEarnedClick: number; totalEarnedBusiness: number; totalEarnedRent: number;
   totalEarnedDividends: number; totalEarnedTrading: number; totalEarnedCrypto: number; totalEarnedGems: number;
@@ -36,11 +37,11 @@ const charge=(s:EngineState,value:number)=>{if(!Number.isFinite(value)||value<0|
 const xp=(s:EngineState,n:number)=>{const old=progressionFromXp(s.playerXp).level;s.playerXp=Math.min(1e9,s.playerXp+n);const reward=rewardsBetweenLevels(old,progressionFromXp(s.playerXp).level);credit(s,reward);s.totalEarnedGems+=reward;};
 export function createGameState(saved: Record<string,unknown> = {}, now=Date.now()):EngineState {
   const upgrades=defaultUpgrades.map(u=>({id:u.id,currentLevel:Math.min(u.maxLevel,Math.floor(amount(list<{id:string;currentLevel:number}>(saved.upgradeLevels).find(x=>x.id===u.id)?.currentLevel)))}));
-  const numeric=Object.fromEntries(['balance','playerXp','totalEarnedClick','totalEarnedBusiness','totalEarnedRent','totalEarnedDividends','totalEarnedTrading','totalEarnedCrypto','totalEarnedGems'].map(k=>[k,amount(saved[k])]));
+  const numeric=Object.fromEntries(['balance','limitedAssetWorth','playerXp','totalEarnedClick','totalEarnedBusiness','totalEarnedRent','totalEarnedDividends','totalEarnedTrading','totalEarnedCrypto','totalEarnedGems'].map(k=>[k,amount(saved[k])]));
   return {...numeric,playerXp:Math.min(1e9,amount(saved.playerXp)),clickPower:1+upgradeLevels.slice(0,upgrades[0].currentLevel).reduce((s,l)=>s+l.bonus,0),upgradeLevels:upgrades,
     purchasedShop:list<{id:string;price:number}>(saved.purchasedShop).filter(x=>shopItemsData.some(i=>i.id===x.id)).map(x=>({id:x.id,price:amount(x.price,shopItemsData.find(i=>i.id===x.id)!.basePrice)})),
     purchasedAccessories:list<string|{id:string;price:number}>(saved.purchasedAccessories).map(x=>typeof x==='string'?{id:x,price:accessoryItemsData.find(i=>i.id===x)?.basePrice||0}:x).filter(x=>accessoryItemsData.some(i=>i.id===x.id)),
-    businesses:list<Business>(saved.businesses).flatMap(b=>{try{return [migrateBusiness(b)]}catch{return []}}),
+    businesses:list<Business>(saved.businesses).map(migrateBusiness),
     stockHoldings:list<EngineState['stockHoldings'][number]>(saved.stockHoldings).filter(h=>stockAssets.some(a=>a.id===h.assetId)&&amount(h.quantity)>0),
     cryptoHoldings:list<EngineState['cryptoHoldings'][number]>(saved.cryptoHoldings).filter(h=>cryptoAssets.some(a=>a.id===h.assetId)&&amount(h.quantity)>0),
     licensePlates:list<LicensePlateState>(saved.licensePlates),realEstateUpgrades:(saved.realEstateUpgrades||{}) as Record<string,string[]>,entrepreneurLicense:(saved.entrepreneurLicense||null) as EngineState['entrepreneurLicense'],
@@ -70,7 +71,7 @@ export function updateAchievements(s:EngineState,now=Date.now()) {
   const metrics:Record<string,number>={...Object.fromEntries(['balance','clickPower','totalEarnedClick','totalEarnedBusiness','totalEarnedRent','totalEarnedDividends','totalEarnedTrading','totalEarnedCrypto'].map(k=>[k,s[k as keyof EngineState] as number])),netWorth,businessCount:s.businesses.length,businessInvestTotal:s.businesses.reduce((n,b)=>n+b.investmentCost,0),businessCategoryCount:new Set(s.businesses.map(b=>b.categoryId)).size,shopCount:s.purchasedShop.length,accessoryCount:s.purchasedAccessories.length,stockUniqueCount:s.stockHoldings.length,cryptoUniqueCount:s.cryptoHoldings.length,stockPortfolioValue:s.stockHoldings.reduce((n,h)=>n+prices.stocks[h.assetId].current*h.quantity,0),cryptoPortfolioValue:s.cryptoHoldings.reduce((n,h)=>n+prices.crypto[h.assetId].current*h.quantity,0),upgradeLevel:s.upgradeLevels.reduce((n,u)=>n+u.currentLevel,0),upgradeSpent:s.upgradeLevels.reduce((n,u)=>n+(defaultUpgrades.find(x=>x.id===u.id)?.levels.slice(0,u.currentLevel).reduce((v,l)=>v+l.cost,0)||0),0)};
   for(const a of achievements){let value=metrics[a.metric]||0;const [kind,id]=a.metric.split(':');if(kind==='shopCategoryCount')value=s.purchasedShop.filter(x=>shopItemsData.find(d=>d.id===x.id)?.categoryId===id).length;if(kind==='accCategoryCount')value=s.purchasedAccessories.filter(x=>accessoryItemsData.find(d=>d.id===x.id)?.categoryId===id).length;if(kind==='hasCrypto')value=s.cryptoHoldings.some(h=>h.assetId===id)?1:0;if(value>=a.threshold&&!s.unlockedAchievements.includes(a.id))s.unlockedAchievements.push(a.id);}
 }
-export function assetWorth(s:EngineState,now=Date.now()) {const {prices}=income(s,now);return Math.min(MAX_MONEY,s.purchasedShop.reduce((n,x)=>n+x.price,0)+s.purchasedAccessories.reduce((n,x)=>n+x.price,0)+s.businesses.reduce((n,x)=>n+x.investmentCost,0)+s.stockHoldings.reduce((n,h)=>n+prices.stocks[h.assetId].current*h.quantity,0)+s.cryptoHoldings.reduce((n,h)=>n+prices.crypto[h.assetId].current*h.quantity,0));}
+export function assetWorth(s:EngineState,now=Date.now()) {const {prices}=income(s,now);return Math.min(MAX_MONEY,s.limitedAssetWorth+s.purchasedShop.reduce((n,x)=>n+x.price,0)+s.purchasedAccessories.reduce((n,x)=>n+x.price,0)+s.businesses.reduce((n,x)=>n+x.investmentCost,0)+s.stockHoldings.reduce((n,h)=>n+prices.stocks[h.assetId].current*h.quantity,0)+s.cryptoHoldings.reduce((n,h)=>n+prices.crypto[h.assetId].current*h.quantity,0));}
 export function applyGameAction(s:EngineState,action:GameAction,now=Date.now()):EngineState {
   const a=action.args,id=String(a.id||''), business=()=>{const b=s.businesses.find(x=>x.id===id);if(!b)throw Error('Предприятие не найдено');return b;};
   switch(action.type){
@@ -92,6 +93,7 @@ export function applyGameAction(s:EngineState,action:GameAction,now=Date.now()):
     case 'select-card': {s.bankCard=normalizeBankCardState(s.bankCard,progressionFromXp(s.playerXp).level);if(!s.bankCard.ownedIds.includes(id))throw Error('Карта заблокирована');s.bankCard.activeId=id;break;}
     case 'customize-card': {if(!/^\d{4}$/.test(String(a.customNumber))||!/^(0[1-9]|1[0-2])\/\d{2}$/.test(String(a.expiresAt))||(a.customColor!==null&&!/^#[0-9a-f]{6}$/i.test(String(a.customColor))))throw Error('Неверные реквизиты');s.bankCard={...s.bankCard,customNumber:String(a.customNumber),expiresAt:String(a.expiresAt),customColor:a.customColor as string|null};break;}
     case 'buy-plate': {
+      if(s.licensePlates.length>=1000)throw Error('Коллекция номеров заполнена');
       const country=String(a.country||'');
       if(!PLATE_COUNTRIES.some(c=>c.id===country)||typeof a.isCustom!=='boolean')throw Error('Неверный номер');
       let text= a.isCustom ? String(a.text||'').trim().toUpperCase() : generateRandomPlate(country);

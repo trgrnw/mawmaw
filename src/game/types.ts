@@ -82,6 +82,7 @@ export interface PriceData {
 }
 
 export interface GameState {
+  limitedAssetWorth: number;
   balance: number;
   clickPower: number;
   playerXp: number;

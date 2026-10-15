@@ -64,7 +64,7 @@ const AdminAnnouncementsTab: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-2xl font-bold">📢 Объявления</h2>
+      <div className="rounded-2xl border border-sky-500/20 bg-sky-500/5 p-4"><p className="text-sm font-semibold">Объявление увидят игроки</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">После публикации текст появится в баннере игры и во входящих аккаунтов при следующей проверке уведомлений (обычно в течение 10 секунд). После прочтения сообщение останется в архиве. Выключение скрывает баннер, сохраняя историю.</p></div>
 
       <Card>
         <CardHeader>
@@ -103,14 +103,14 @@ const AdminAnnouncementsTab: React.FC = () => {
                   size="sm"
                   onClick={() => toggleAnnouncement(a.id, a.is_active)}
                 >
-                  {a.is_active ? '🔇' : '🔔'}
+                  {a.is_active ? 'Скрыть' : 'Показать'}
                 </Button>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => deleteAnnouncement(a.id)}
                 >
-                  🗑️
+                  Удалить
                 </Button>
               </div>
             </CardContent>

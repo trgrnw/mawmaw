@@ -1,3 +1,4 @@
+import LimitedCollection from '@/components/limited/LimitedCollection';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
@@ -215,6 +216,7 @@ const PlayerProfileDialog: React.FC<Props> = ({ userId, onClose }) => {
               </div>
             </div>
 
+            <LimitedCollection userId={userId}/>
             {/* Tabs */}
             <div className="flex bg-muted/40 rounded-lg p-0.5">
               <button onClick={() => setTab('info')}

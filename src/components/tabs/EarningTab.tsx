@@ -43,7 +43,7 @@ const EarningTab: React.FC = () => {
 
       <div
         className="relative click-area-pulse border-2 border-dashed rounded-2xl h-52 flex flex-col items-center justify-center cursor-pointer transition-transform active:scale-[0.98] hover:border-sky-400"
-        onClick={handleClick}
+        data-clicker onClick={handleClick}
       >
         <span className="mb-3 pointer-events-none"><GameIcon name="click" size={48} themed /></span>
         <p className="text-muted-foreground pointer-events-none text-center px-4">
