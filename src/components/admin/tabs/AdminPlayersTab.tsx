@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 
 interface PlayerRow {
@@ -9,6 +10,7 @@ interface PlayerRow {
   username: string;
   avatar_emoji: string;
   player_id: number;
+  balance: number;
   net_worth: number;
   updated_at: string;
 }
@@ -30,9 +32,10 @@ const AdminPlayersTab: React.FC = () => {
   const loadPlayers = async () => {
     setLoading(true);
     // Join profiles with game_saves
-    const { data: profiles } = await supabase.from('profiles').select('*');
-    const { data: saves } = await supabase.from('game_saves').select('user_id, net_worth, updated_at, game_state');
+    const { data: profiles, error: profileError } = await supabase.from('profiles').select('*');
+    const { data: saves, error: saveError } = await supabase.from('game_saves').select('user_id, net_worth, updated_at, game_state, pending_balance');
 
+    if (profileError || saveError) { toast.error(profileError?.message || saveError?.message); setLoading(false); return; }
     const merged: PlayerRow[] = (profiles || []).map(p => {
       const save = saves?.find(s => s.user_id === p.user_id);
       return {
@@ -41,6 +44,7 @@ const AdminPlayersTab: React.FC = () => {
         avatar_emoji: p.avatar_emoji,
         player_id: p.player_id,
         net_worth: save?.net_worth || 0,
+        balance: Number((save?.game_state as { balance?: number } | null)?.balance || 0) + Number(save?.pending_balance || 0),
         updated_at: save?.updated_at || p.created_at,
       };
     });
@@ -51,11 +55,14 @@ const AdminPlayersTab: React.FC = () => {
 
   const handleBalanceChange = async (userId: string) => {
     const amount = parseFloat(newBalance);
-    if (isNaN(amount)) return;
+    if (isNaN(amount) || busy) return;
 
     if (!Number.isFinite(amount) || amount < 0) return;
+    setBusy(true);
     const { error } = await supabase.rpc('admin_set_player_balance', { p_user_id: userId, p_balance: amount });
-    if (error) { alert(error.message); return; }
+    setBusy(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success('Баланс обновлён');
 
     setEditingBalance(null);
     setNewBalance('');
@@ -94,8 +101,8 @@ const AdminPlayersTab: React.FC = () => {
   };
 
   const filtered = players.filter(p =>
-    p.username.toLowerCase().includes(search.toLowerCase()) ||
-    p.player_id.toString().includes(search)
+    p.username.toLowerCase().includes(search.trim().replace(/^@/, '').toLowerCase()) ||
+    String(p.player_id).includes(search.trim().replace(/^#/, ''))
   );
 
   return (
@@ -137,7 +144,7 @@ const AdminPlayersTab: React.FC = () => {
                         onChange={e => setNewBalance(e.target.value)}
                         className="w-40 h-8"
                       />
-                      <Button size="sm" onClick={() => handleBalanceChange(player.user_id)}>✅</Button>
+                      <Button size="sm" disabled={busy} onClick={() => handleBalanceChange(player.user_id)}>✅</Button>
                       <Button size="sm" variant="ghost" onClick={() => setEditingBalance(null)}>❌</Button>
                     </div>
                   ) : adjustingId === player.user_id ? (
@@ -162,7 +169,7 @@ const AdminPlayersTab: React.FC = () => {
                           variant="outline"
                           size="sm"
                           className="h-6 text-xs"
-                          onClick={() => { setEditingBalance(player.user_id); setNewBalance(String(player.net_worth)); }}
+                          onClick={() => { setEditingBalance(player.user_id); setNewBalance(String(player.balance)); }}
                         >
                           💰 Баланс
                         </Button>

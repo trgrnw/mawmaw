@@ -5,6 +5,7 @@ import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { accessoryCategories, accessoryItemsData, shopItemsData, ShopItemData } from '@/data/shopData';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import ShowcaseCard from '@/components/profile/ShowcaseCard';
 import GameIcon from '@/components/GameIcon';
 import { useI18n } from '@/i18n/I18nContext';
 import LicensePlate, {
@@ -356,7 +357,7 @@ const AccessoriesTab: React.FC = () => {
           <h3 className="text-lg font-semibold flex items-center gap-2"><GameIcon name="misc" size={20} /> {t('acc.misc')}</h3>
 
           {/* Usernames card */}
-          <div className="bg-card rounded-3xl border border-fuchsia-500/15 p-5 space-y-4">
+          <div className="relative overflow-hidden rounded-3xl border border-sky-500/25 bg-gradient-to-br from-sky-500/10 via-card to-indigo-500/10 p-5 space-y-4">
             <div className="flex items-center gap-3">
               <GameIcon name="tag" size={36} themed />
               <div>
@@ -364,6 +365,7 @@ const AccessoriesTab: React.FC = () => {
                 <p className="text-xs text-muted-foreground">{t('acc.username_desc')}</p>
               </div>
             </div>
+            {myUsernames.length > 0 && <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{myUsernames.slice(0, 6).map(item => <ShowcaseCard key={item.id} item={{ cat: 'favorite_username', id: item.id, name: `@${item.username}` }} />)}</div>}
             <div className="flex items-center justify-between">
               <span className="font-mono-game text-sm text-foreground">${formatMoney(USERNAME_PRICE)} {t('acc.price_each')}</span>
               <span className="text-xs text-muted-foreground">{myUsernames.length}/{MAX_USERNAMES} {t('acc.created')}</span>
@@ -386,7 +388,7 @@ const AccessoriesTab: React.FC = () => {
           </div>
 
           {/* License Plates card */}
-          <div className="bg-card rounded-3xl border border-fuchsia-500/15 p-5 space-y-4">
+          <div className="relative overflow-hidden rounded-3xl border border-amber-500/25 bg-gradient-to-br from-amber-500/10 via-card to-orange-500/10 p-5 space-y-4">
             <div className="flex items-center gap-3">
               <GameIcon name="plate" size={36} themed />
               <div>
@@ -413,9 +415,9 @@ const AccessoriesTab: React.FC = () => {
             {licensePlates.length > 0 && (
               <div className="space-y-2">
                 <p className="text-xs text-muted-foreground">{t('acc.your_plates')} ({licensePlates.length}):</p>
-                <div className="flex flex-wrap gap-2">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {licensePlates.slice(0, 6).map(p => (
-                    <LicensePlate key={p.id} plate={p as LicensePlateData} size="sm" />
+                    <ShowcaseCard key={p.id} item={{ cat: 'favorite_plate', id: p.id, name: p.text, country: p.country }} />
                   ))}
                   {licensePlates.length > 6 && (
                     <span className="text-xs text-muted-foreground self-center">+{licensePlates.length - 6}</span>

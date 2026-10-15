@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAdminAuth, type AppRole } from '@/hooks/useAdminAuth';
+import { type AppRole } from '@/hooks/useAdminAuth';
 import { useAuth } from '@/context/AuthContext';
 import AdminPlayersTab from './tabs/AdminPlayersTab';
 import AdminEconomyTab from './tabs/AdminEconomyTab';
@@ -24,8 +24,11 @@ interface AdminLayoutProps {
 const AdminLayout: React.FC<AdminLayoutProps> = ({ role }) => {
   const navigate = useNavigate();
   const { signOut } = useAuth();
-  const { canManageUsers, canManageEconomy, canManageRoles, canViewStats } = useAdminAuth();
-  const [activeTab, setActiveTab] = useState<AdminTab>('players');
+  const canManageUsers = role === 'owner' || role === 'admin';
+  const canManageEconomy = canManageUsers;
+  const canManageRoles = role === 'owner';
+  const canViewStats = true;
+  const [activeTab, setActiveTab] = useState<AdminTab>(role === 'moderator' ? 'transactions' : 'players');
 
   const tabs: { id: AdminTab; label: string; icon: string; allowed: boolean }[] = [
     { id: 'players', label: 'Игроки', icon: 'users', allowed: canManageUsers },
@@ -40,13 +43,16 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ role }) => {
     { id: 'logs', label: 'Логи', icon: 'logs', allowed: canViewStats },
   ];
 
+  const allowedTab = tabs.find(tab => tab.id === activeTab && tab.allowed)?.id || tabs.find(tab => tab.allowed)!.id;
+  useEffect(() => { setActiveTab(allowedTab); }, [allowedTab]);
+
   const handleLogout = async () => {
     await signOut();
     navigate('/');
   };
 
   const renderTab = () => {
-    switch (activeTab) {
+    switch (allowedTab) {
       case 'players':
         return <AdminPlayersTab />;
       case 'tickets':
@@ -105,14 +111,14 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ role }) => {
         </div>
       </header>
 
-      <div className="flex">
+      <div className="flex flex-col md:flex-row">
         {/* Sidebar */}
-        <aside className="w-56 border-r bg-card/50 min-h-[calc(100vh-57px)] p-3 space-y-1">
+        <aside className="flex gap-1 overflow-x-auto border-b bg-card/50 p-3 md:block md:w-56 md:shrink-0 md:space-y-1 md:border-r md:min-h-[calc(100vh-57px)]">
           {tabs.filter(t => t.allowed).map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all text-left ${
+              className={`flex shrink-0 items-center gap-3 whitespace-nowrap md:w-full px-4 py-2.5 rounded-xl text-sm font-medium transition-all text-left ${
                 activeTab === tab.id
                   ? 'bg-primary text-primary-foreground shadow-sm'
                   : 'text-foreground/80 hover:bg-muted'
@@ -125,7 +131,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ role }) => {
         </aside>
 
         {/* Content */}
-        <main className="flex-1 p-6">
+        <main className="min-w-0 flex-1 p-4 sm:p-6">
           {renderTab()}
         </main>
       </div>
